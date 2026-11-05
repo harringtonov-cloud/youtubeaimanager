@@ -1,0 +1,99 @@
+name: youtubeaimanager
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql://yam:yam@postgres:5432/yam
+  REDIS_URL: redis://redis:6379/0
+  DATA_DIR: /data
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+  ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+  BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+  TIMEZONE: ${TIMEZONE:-UTC}
+  LLM_BASE_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-openai/gpt-4o-mini}
+  LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+  TTS_PROVIDER: ${TTS_PROVIDER:-edge}
+  TTS_BASE_URL: ${TTS_BASE_URL:-}
+  TTS_API_KEY: ${TTS_API_KEY:-}
+  TTS_MODEL: ${TTS_MODEL:-gpt-4o-mini-tts}
+  TTS_VOICE: ${TTS_VOICE:-alloy}
+  PEXELS_API_KEY: ${PEXELS_API_KEY:-}
+  PIXABAY_API_KEY: ${PIXABAY_API_KEY:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+  S3_REGION: ${S3_REGION:-auto}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yam
+      POSTGRES_PASSWORD: yam
+      POSTGRES_DB: yam
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yam"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    command: ["./scripts/start-api.sh"]
+    environment: *backend-env
+    volumes:
+      - mediadata:/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["./scripts/start-worker.sh"]
+    environment: *backend-env
+    volumes:
+      - mediadata:/data
+    depends_on:
+      backend: { condition: service_started }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  redisdata:
+  mediadata:
