@@ -1,0 +1,10 @@
+# Railway service "worker"  (Root Directory: backend, Config-as-code path: /backend/railway.worker.toml)
+# Runs the Celery worker with the embedded beat scheduler. Keep exactly ONE replica.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "./scripts/start-worker.sh"
+numReplicas = 1
+restartPolicyType = "ALWAYS"

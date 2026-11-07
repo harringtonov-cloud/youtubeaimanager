@@ -1,26 +1,47 @@
 # YouTube AI Manager
 
 Автономная система управления YouTube-каналом (Shorts): AI сам находит идеи, пишет сценарии,
-монтирует вертикальные видео, делает обложки и SEO, публикует по расписанию и учится на аналитике.
+монтирует вертикальные видео 9:16, делает обложки и SEO, публикует по расписанию и учится на аналитике.
+После первоначальной настройки работает без участия человека, браузер можно закрыть.
 
-* **Frontend:** Next.js + TypeScript + Tailwind (Vercel)
-* **Backend:** Python + FastAPI (Railway)
-* **Worker/Scheduler:** Celery + Redis (Railway)
-* **DB:** PostgreSQL
-* **Video:** FFmpeg
-* **AI:** любой OpenAI-compatible API (в т.ч. OpenRouter)
+| Часть | Технологии |
+|---|---|
+| Dashboard | Next.js 14 + TypeScript + Tailwind (Vercel) |
+| API | Python + FastAPI (Railway) |
+| Worker + планировщик | Celery + Redis (Railway) |
+| База данных | PostgreSQL |
+| Видео | FFmpeg, TTS (Edge / OpenAI-compatible), лицензионные стоки Pexels/Pixabay |
+| AI | любой OpenAI-compatible API, в том числе OpenRouter |
+| YouTube | Data API v3 + Analytics API, OAuth 2.0 (PKCE) |
 
-Подробности — в [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Инструкция первоначальной настройки
-и деплоя будет дописана в разделе «Setup» по мере завершения этапов.
+## Что делает система
+
+1. **AI Director** ищет идеи (Google Trends, Wikipedia, YouTube popular), оценивает их с учётом результатов прошлых роликов, не повторяет темы.
+2. **Scriptwriter** пишет оригинальный сценарий: хук, сцены, озвучку, подсказки для визуала.
+3. **Video Creator** делает озвучку, подбирает *лицензионные* видео (или генерирует фон), собирает MP4 1080×1920 через FFmpeg с субтитрами и переходами.
+4. **Thumbnail Creator** делает обложку 1280×720. **SEO Manager** готовит название, описание, хештеги, теги, категорию.
+5. **Publisher** загружает через YouTube Data API по расписанию, с защитой от дублей и повторными попытками.
+6. **Analytics** собирает метрики, определяет успешные темы и возвращает выводы в Director и Scriptwriter.
+
+Используются только оригинальные или лицензированные материалы: чужие ролики не скачиваются и не перезаливаются.
+
+## Надёжность
+
+* Состояние в PostgreSQL, стадии идемпотентны, блокировки переживают перезапуски; watchdog подхватывает зависшие видео.
+* Повторы с экспоненциальной паузой при временных ошибках; постоянные ошибки видны в Dashboard с кнопкой Retry.
+* Защита от дублей: уникальные отпечатки идей и контента, один `publication` на видео, сохранение YouTube-id до любых следующих шагов, поиск уже загруженной копии перед повторной загрузкой.
+* Автопубликацию нельзя включить, пока не пройдена живая проверка (YouTube, LLM, worker, хранилище, расписание); при потере доступа к YouTube она ставится на паузу.
+* Секреты только в переменных окружения; refresh-токен YouTube шифруется в БД.
+
+## Документация
+
+* **[docs/SETUP.md](docs/SETUP.md)** — список секретов и пошаговая настройка Vercel + Railway + Google
+* [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — устройство системы
 
 ## Структура
 
 ```
-backend/    FastAPI + Celery + FFmpeg пайплайн
-frontend/   Next.js дашборд
+backend/    FastAPI, Celery, FFmpeg-пайплайн, Alembic, тесты
+frontend/   Next.js дашборд (9 страниц)
 docs/       документация
 ```
-
-## Безопасность
-
-Все ключи — только в переменных окружения (см. `.env.example`). Файл `.env` в `.gitignore`.

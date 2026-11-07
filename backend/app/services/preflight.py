@@ -14,6 +14,12 @@ from ..storage import get_storage
 from . import llm, youtube
 
 
+def _on_ephemeral_cloud() -> bool:
+    import os
+
+    return any(os.environ.get(k) for k in ("RAILWAY_ENVIRONMENT", "RAILWAY_ENVIRONMENT_NAME", "RAILWAY_PROJECT_ID"))
+
+
 def _check(cid: str, label: str, ok: bool, detail: str, blocking: bool = True) -> dict[str, Any]:
     return {"id": cid, "label": label, "ok": bool(ok), "detail": detail, "blocking": blocking}
 
@@ -44,7 +50,14 @@ def run_checks(db: Session, live: bool = True) -> dict[str, Any]:
 
     try:
         st = get_storage()
-        checks.append(_check("storage", f"Storage ({st.kind})", True, "ok"))
+        if st.kind == "local" and _on_ephemeral_cloud():
+            # Railway & co: the API and the worker are separate containers with separate, ephemeral disks.
+            # Rendered videos would vanish on restart and the dashboard could not preview them.
+            checks.append(_check("storage", "Persistent shared storage", False,
+                                 "STORAGE_BACKEND=local on a cloud host: set STORAGE_BACKEND=s3 "
+                                 "(Cloudflare R2 / Backblaze B2 / Railway Bucket / AWS S3)"))
+        else:
+            checks.append(_check("storage", f"Storage ({st.kind})", True, "ok"))
     except Exception as e:
         checks.append(_check("storage", "Storage", False, str(e)[:200]))
 
