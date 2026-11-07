@@ -26,10 +26,13 @@ export async function POST(req: NextRequest) {
   }
   if (!r.ok) return NextResponse.json({ detail: "Invalid token" }, { status: 401 });
 
+  // "Secure" cookies are dropped by browsers on plain http (e.g. self-hosted at http://<ip>:3000),
+  // so only set the flag when the request actually came in over https.
+  const https = req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https";
   const res = NextResponse.json({ ok: true });
   res.cookies.set(COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: https,
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 30,

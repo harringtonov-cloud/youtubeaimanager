@@ -35,7 +35,8 @@
 
 ## Документация
 
-* **[docs/SETUP.md](docs/SETUP.md)** — список секретов и пошаговая настройка Vercel + Railway + Google
+* **[docs/SELF_HOST.md](docs/SELF_HOST.md)** — запуск на своём компьютере/VPS одной командой (Docker), без Railway и Vercel
+* [docs/SETUP.md](docs/SETUP.md) — вариант с облаком: Vercel + Railway + S3
 * [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — устройство системы
 
 ## Структура
