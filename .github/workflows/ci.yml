@@ -23,3 +23,19 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m compileall -q app alembic
       - run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npm run build
+        env:
+          BACKEND_URL: http://localhost:8000
