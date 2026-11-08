@@ -43,15 +43,27 @@ jobs:
       S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
       TIMEZONE: ${{ secrets.TIMEZONE || 'Asia/Tashkent' }}
     steps:
+      - name: Skip until the secrets are configured
+        id: gate
+        working-directory: .
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::DATABASE_URL secret is not set yet - skipping (see docs/FREE.md, step 5)"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.gate.outputs.skip != 'true'
 
       - uses: actions/setup-python@v5
+        if: steps.gate.outputs.skip != 'true'
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
       - name: FFmpeg and fonts
+        if: steps.gate.outputs.skip != 'true'
         run: |
           if ! command -v ffmpeg >/dev/null || ! fc-list | grep -qi dejavu; then
             sudo apt-get update -qq
@@ -59,6 +71,8 @@ jobs:
           fi
 
       - run: pip install -r requirements.txt
+        if: steps.gate.outputs.skip != 'true'
 
       - name: Run one cycle
+        if: steps.gate.outputs.skip != 'true'
         run: python -m app.runner
