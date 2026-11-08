@@ -1,9 +1,10 @@
 """Environment-driven configuration. All secrets come from environment variables only."""
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -62,6 +63,15 @@ class Config(BaseSettings):
         if v.startswith("postgresql://"):
             v = "postgresql+psycopg://" + v[len("postgresql://"):]
         return v
+
+    @model_validator(mode="after")
+    def _public_url_from_host(self) -> "Config":
+        # Render exposes the service's public URL as RENDER_EXTERNAL_URL; an explicit
+        # BACKEND_PUBLIC_URL always wins.
+        ext = os.environ.get("RENDER_EXTERNAL_URL", "").strip()
+        if ext and not os.environ.get("BACKEND_PUBLIC_URL"):
+            self.backend_public_url = ext.rstrip("/")
+        return self
 
     @property
     def is_sqlite(self) -> bool:

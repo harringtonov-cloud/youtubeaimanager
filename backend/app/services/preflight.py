@@ -17,7 +17,10 @@ from . import llm, youtube
 def _on_ephemeral_cloud() -> bool:
     import os
 
-    return any(os.environ.get(k) for k in ("RAILWAY_ENVIRONMENT", "RAILWAY_ENVIRONMENT_NAME", "RAILWAY_PROJECT_ID"))
+    return any(
+        os.environ.get(k)
+        for k in ("RAILWAY_ENVIRONMENT", "RAILWAY_ENVIRONMENT_NAME", "RAILWAY_PROJECT_ID", "RENDER", "RENDER_SERVICE_ID")
+    )
 
 
 def _check(cid: str, label: str, ok: bool, detail: str, blocking: bool = True) -> dict[str, Any]:
