@@ -1,89 +1,64 @@
-# Render Blueprint: the whole system in one click (Render → New → Blueprint → this repo).
-# Secrets are NOT stored here: after the first deploy add them once to the "yam-shared"
-# environment group in the Render dashboard (see docs/RENDER.md).
-
-envVarGroups:
-  - name: yam-shared
-    envVars:
-      - key: SECRET_KEY            # encrypts the YouTube token in the DB; generated once, never change it
-        generateValue: true
-      - key: LLM_BASE_URL
-        value: https://openrouter.ai/api/v1
-      - key: LLM_MODEL
-        value: openai/gpt-4o-mini
-      - key: STORAGE_BACKEND
-        value: s3
-      - key: S3_REGION
-        value: auto
-      - key: TTS_PROVIDER
-        value: edge
-      - key: TIMEZONE
-        value: Asia/Tashkent
-
-databases:
-  - name: yam-db
-    plan: basic-256mb
-    postgresMajorVersion: "16"
-    ipAllowList: []                # private network only
+# FREE setup (see docs/FREE.md): the dashboard + API run on Render's free plan.
+# The pipeline itself runs on GitHub Actions (.github/workflows/runner.yml), the database and the
+# media bucket live on Supabase. No Redis, no always-on worker.
+#
+# Secrets are NOT stored here: Render asks for them once while you create the Blueprint.
+# The paid variant with an always-on worker is in deploy/render.paid.yaml (docs/RENDER.md).
 
 services:
-  - type: keyvalue                 # Redis: Celery broker
-    name: yam-redis
-    plan: free
-    maxmemoryPolicy: noeviction
-    ipAllowList: []
-
-  - type: web                      # FastAPI backend
+  - type: web                      # FastAPI backend (sleeps when idle; wakes on the first request)
     name: yam-api
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /api/health
     envVars:
-      - fromGroup: yam-shared
       - key: PORT
         value: "10000"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: yam-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: yam-redis
-          property: connectionString
-
-  - type: worker                   # Celery worker + scheduler (FFmpeg rendering, publishing, analytics)
-    name: yam-worker
-    runtime: docker
-    plan: standard                 # video rendering needs RAM; try "starter" later if renders succeed
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    dockerCommand: ./scripts/start-worker.sh
-    envVars:
-      - fromGroup: yam-shared
-      - key: DATABASE_URL
-        fromDatabase:
-          name: yam-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: yam-redis
-          property: connectionString
+      - key: QUEUE_MODE
+        value: inline
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: LLM_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: LLM_MODEL
+        value: openai/gpt-4o-mini
+      - key: TTS_PROVIDER
+        value: edge
+      - key: TIMEZONE
+        value: Asia/Tashkent
+      - key: DATABASE_URL         # Supabase "Session pooler" connection string
+        sync: false
+      - key: ADMIN_TOKEN          # your password for the dashboard
+        sync: false
+      - key: SECRET_KEY           # random string; must be IDENTICAL in GitHub Secrets
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      # added by hand after the first deploy (the URLs are not known yet): FRONTEND_URL
 
   - type: web                      # Next.js dashboard (open this URL on your phone)
     name: yam-web
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend
     envVars:
       - key: PORT
         value: "10000"
-      - key: BACKEND_URL           # private-network address of the API (host:port)
-        fromService:
-          type: web
-          name: yam-api
-          property: hostport
+      # added by hand after the first deploy: BACKEND_URL = public https URL of yam-api

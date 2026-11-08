@@ -20,7 +20,7 @@ from ..models import (
     YouTubeAccount,
     utcnow,
 )
-from ..redis_util import queue_length, redis_ok, worker_heartbeat_age
+from ..redis_util import queue_length, redis_ok, worker_alive_limit, worker_heartbeat_age
 from ..security import require_admin
 from ..settings_store import get_settings
 from ..storage import get_storage
@@ -79,7 +79,7 @@ def overview(db: Session = Depends(get_db)):
     except Exception:
         db_ok = False
     hb_age = worker_heartbeat_age()
-    worker_online = hb_age is not None and hb_age < 120
+    worker_online = hb_age is not None and hb_age < worker_alive_limit()
     try:
         storage_kind = get_storage().kind
     except Exception as e:  # misconfigured S3

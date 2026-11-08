@@ -35,7 +35,8 @@
 
 ## Документация
 
-* **[docs/RENDER.md](docs/RENDER.md)** — запуск на Render целиком с телефона, без компьютера (файл `render.yaml`)
+* **[docs/FREE.md](docs/FREE.md)** — **бесплатный** запуск с телефона: GitHub Actions + Supabase + Render free (файл `render.yaml`)
+* [docs/RENDER.md](docs/RENDER.md) — платный вариант с постоянным worker на Render (`deploy/render.paid.yaml`)
 * [docs/SELF_HOST.md](docs/SELF_HOST.md) — запуск на своём компьютере/VPS одной командой (Docker)
 * [docs/SETUP.md](docs/SETUP.md) — вариант с облаком: Vercel + Railway + S3
 * [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — устройство системы

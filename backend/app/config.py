@@ -20,6 +20,10 @@ class Config(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     timezone: str = "UTC"
     log_level: str = "INFO"
+    # "celery" = always-on worker + Redis; "inline" = no Redis/Celery: a scheduled runner
+    # (python -m app.runner, e.g. GitHub Actions cron) executes the pipeline in-process.
+    queue_mode: str = "celery"
+    runner_budget_minutes: int = 45
 
     # llm
     llm_base_url: str = "https://openrouter.ai/api/v1"
@@ -72,6 +76,10 @@ class Config(BaseSettings):
         if ext and not os.environ.get("BACKEND_PUBLIC_URL"):
             self.backend_public_url = ext.rstrip("/")
         return self
+
+    @property
+    def inline_mode(self) -> bool:
+        return self.queue_mode.strip().lower() == "inline"
 
     @property
     def is_sqlite(self) -> bool:

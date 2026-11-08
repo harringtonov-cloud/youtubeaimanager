@@ -12,6 +12,7 @@ from typing import Any, Callable, Optional
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import delete, select
 
+from ..config import get_config
 from ..db import SessionLocal
 from ..events import log_event, prune_logs
 from ..models import (
@@ -82,6 +83,8 @@ def _finish_run(run_id: int, status: str, detail: Optional[str]) -> None:
 
 
 def enqueue_stage(video_id: int, stage: str, countdown: int = 0) -> None:
+    if get_config().inline_mode:
+        return  # no broker: the scheduled runner (app.runner) picks videos up by their status
     run_stage.apply_async(args=[video_id, stage], countdown=countdown)
 
 

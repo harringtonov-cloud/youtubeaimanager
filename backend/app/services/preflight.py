@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..config import get_config
-from ..redis_util import redis_ok, worker_heartbeat_age
+from ..redis_util import redis_ok, worker_alive_limit, worker_heartbeat_age
 from ..settings_store import get_settings
 from ..storage import get_storage
 from . import llm, youtube
@@ -17,6 +17,8 @@ from . import llm, youtube
 def _on_ephemeral_cloud() -> bool:
     import os
 
+    if get_config().inline_mode:
+        return True  # the runner's disk is wiped after every run
     return any(
         os.environ.get(k)
         for k in ("RAILWAY_ENVIRONMENT", "RAILWAY_ENVIRONMENT_NAME", "RAILWAY_PROJECT_ID", "RENDER", "RENDER_SERVICE_ID")
@@ -44,9 +46,9 @@ def run_checks(db: Session, live: bool = True) -> dict[str, Any]:
     r_ok = redis_ok()
     checks.append(_check("redis", "Redis reachable", r_ok, "ok" if r_ok else "REDIS_URL unreachable"))
     age = worker_heartbeat_age()
-    w_ok = age is not None and age < 120
+    w_ok = age is not None and age < worker_alive_limit()
     checks.append(_check("worker", "Worker running", w_ok,
-                         f"heartbeat {age:.0f}s ago" if age is not None else "no heartbeat — start the worker service"))
+                         f"last signal {age:.0f}s ago" if age is not None else "no signal yet: start the worker / run the scheduled runner once"))
 
     checks.append(_check("ffmpeg", "FFmpeg installed", bool(shutil.which("ffmpeg") and shutil.which("ffprobe")),
                          "ok" if shutil.which("ffmpeg") else "ffmpeg/ffprobe not found in PATH"))
