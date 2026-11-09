@@ -172,7 +172,7 @@ export default function SettingsPage() {
             <Badge key={k} tone={v ? "ok" : required.includes(k) ? "bad" : "mute"}>{v ? "✓" : "✗"} {k}</Badge>
           ))}
         </div>
-        <p className="mt-3 text-xs text-muted">LLM endpoint: {data.env.llm_base_url} · model {data.env.llm_model} · TTS {data.env.tts_provider} · storage {data.env.storage_backend}. Change these in Railway → Variables.</p>
+        <p className="mt-3 text-xs text-muted">LLM endpoint: {data.env.llm_base_url} · model {data.env.llm_model} · TTS {data.env.tts_provider} · storage {data.env.storage_backend}. Change these in Render (yam-api → Environment) and in GitHub Secrets.</p>
       </Card>
     </>
   );
