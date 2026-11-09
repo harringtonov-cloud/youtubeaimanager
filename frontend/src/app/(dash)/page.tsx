@@ -17,6 +17,9 @@ export default function Overview() {
 
   if (error && !data) return <ErrorBox>{error}</ErrorBox>;
   if (!data) return <div className="text-sm text-muted">Loading…</div>;
+  if (!data.ai || !data.server || !data.queue || !data.counts || !data.youtube) {
+    return <ErrorBox>Unexpected reply from the backend: {JSON.stringify(data).slice(0, 300)}</ErrorBox>;
+  }
 
   const { ai, server, youtube, queue, counts } = data;
   const modeTone = ai.mode === "autonomous" ? "ok" : ai.mode === "manual" ? "warn" : "bad";

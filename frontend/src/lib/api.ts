@@ -41,6 +41,10 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
       data = text;
     }
   }
+  if (res.ok && typeof data === "string") {
+    // e.g. Render's "service is waking up" HTML page instead of JSON
+    throw new ApiError(502, "Backend is waking up or returned a non-JSON reply. Wait a minute and refresh.");
+  }
   if (!res.ok) {
     const detail = data && typeof data === "object" && "detail" in data ? data.detail : data;
     throw new ApiError(res.status, messageFrom(detail, `Request failed (${res.status})`), detail);
