@@ -32,7 +32,11 @@ async function handle(req: NextRequest, { params }: { params: { path: string[] }
   }
 
   const out = new Headers();
+  // fetch() transparently decompresses gzip/br bodies, so the upstream content-length (compressed size)
+  // would truncate the reply: only forward it for uncompressed responses (e.g. video ranges).
+  const compressed = Boolean(upstream.headers.get("content-encoding"));
   for (const h of ["content-type", "content-length", "content-range", "accept-ranges", "cache-control"]) {
+    if (compressed && h === "content-length") continue;
     const v = upstream.headers.get(h);
     if (v) out.set(h, v);
   }
