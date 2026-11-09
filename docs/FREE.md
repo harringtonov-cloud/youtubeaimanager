@@ -57,7 +57,7 @@
 | `DATABASE_URL` | как на шаге 2 |
 | `SECRET_KEY` | **такой же**, как в Render |
 | `LLM_API_KEY` | ключ OpenRouter |
-| `PEXELS_API_KEY` | ключ Pexels |
+| `PEXELS_API_KEY` или `PIXABAY_API_KEY` | ключ Pixabay (https://pixabay.com/api/docs/); Pexels сейчас не выдаёт новые ключи |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | с шага 6 |
 | `S3_ENDPOINT_URL`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | как на шаге 2 |
 | `LLM_MODEL` (необязательно) | если не `openai/gpt-4o-mini` |
