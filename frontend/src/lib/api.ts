@@ -45,6 +45,10 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
     // e.g. Render's "service is waking up" HTML page instead of JSON
     throw new ApiError(502, "Backend is waking up or returned a non-JSON reply. Wait a minute and refresh.");
   }
+  if (!res.ok && typeof data === "string" && /^\s*<(!doctype|html)/i.test(data)) {
+    // an HTML error page from the hosting platform (e.g. Render 502 while the free API is asleep)
+    throw new ApiError(res.status, `Backend is not answering yet (HTTP ${res.status}). The free server may be waking up: wait a minute, the page retries automatically.`);
+  }
   if (!res.ok) {
     const detail = data && typeof data === "object" && "detail" in data ? data.detail : data;
     throw new ApiError(res.status, messageFrom(detail, `Request failed (${res.status})`), detail);

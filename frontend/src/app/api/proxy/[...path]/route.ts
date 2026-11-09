@@ -18,18 +18,21 @@ async function handle(req: NextRequest, { params }: { params: { path: string[] }
   if (range) headers["range"] = range;
 
   const hasBody = !["GET", "HEAD"].includes(req.method);
-  let upstream: Response;
-  try {
-    upstream = await fetch(url, {
-      method: req.method,
-      headers,
-      body: hasBody ? await req.text() : undefined,
-      cache: "no-store",
-      redirect: "follow",
-    });
-  } catch {
-    return NextResponse.json({ detail: "Backend is unreachable" }, { status: 502 });
+  let upstream: Response | null = null;
+  // The free Render API sleeps when idle: for safe reads, wait for it to wake up instead of failing.
+  const attempts = req.method === "GET" ? 6 : 1;
+  const body = hasBody ? await req.text() : undefined;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      upstream = await fetch(url, { method: req.method, headers, body, cache: "no-store", redirect: "follow" });
+      if (![502, 503, 504].includes(upstream.status) || i === attempts - 1) break;
+    } catch {
+      upstream = null;
+      if (i === attempts - 1) break;
+    }
+    await new Promise((r) => setTimeout(r, 5000));
   }
+  if (!upstream) return NextResponse.json({ detail: "Backend is unreachable" }, { status: 502 });
 
   const out = new Headers();
   // fetch() transparently decompresses gzip/br bodies, so the upstream content-length (compressed size)
