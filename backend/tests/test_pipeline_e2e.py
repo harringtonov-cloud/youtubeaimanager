@@ -11,7 +11,7 @@ import pytest
 
 from app.crypto import encrypt
 from app.models import (FAILED, PLANNED, PUBLISHED, READY, Idea, Publication, Video, YouTubeAccount, utcnow)
-from app.services import director, ffmpeg_utils, llm, publisher, stock, subtitles, trends, tts, youtube
+from app.services import director, ffmpeg_utils, images, llm, publisher, stock, subtitles, trends, tts, youtube
 from app.settings_store import update_settings
 from app.storage import get_storage
 from app.workers import tasks
@@ -82,6 +82,7 @@ def env(db, monkeypatch):
     monkeypatch.setattr(trends, "collect_signals", lambda db, regions, limit=40: [])
     monkeypatch.setattr(tts, "synthesize", fake_tts)
     monkeypatch.setattr(stock, "find_clip", fake_find_clip)
+    monkeypatch.setattr(images, "generate", lambda *a, **k: None)  # hermetic: no AI-picture network calls
     uploads, thumbs = [], []
     monkeypatch.setattr(youtube, "upload_video", lambda db, path, snippet, status, on_progress=None:
                         (uploads.append((snippet, status)), f"YT{len(uploads)}")[1])
