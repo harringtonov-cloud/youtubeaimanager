@@ -64,6 +64,20 @@ def scene_from_clip(src: str | Path, dst: str | Path, duration: float) -> None:
          "-t", f"{duration:.3f}", "-an", "-vf", vf, *_VENC, str(dst)], 300)
 
 
+def scene_from_image(src: str | Path, dst: str | Path, duration: float, variant: int = 0) -> None:
+    """Still picture -> `duration` seconds of 1080x1920 with a slow Ken Burns move (zoom in / out, alternating)."""
+    frames = max(2, int(round(duration * FPS)))
+    zmax = 0.16
+    z = (f"1+{zmax}*on/{frames}" if variant % 2 == 0 else f"1+{zmax}-{zmax}*on/{frames}")
+    # alternate the drift direction too, so consecutive scenes do not look identical
+    x = ("iw/2-(iw/zoom/2)+(iw*0.03)*(on/%d-0.5)" % frames) if variant % 3 == 0 else "iw/2-(iw/zoom/2)"
+    vf = (f"crop=iw:ih*0.95:0:0,scale=1620:2880:force_original_aspect_ratio=increase,crop=1620:2880,"
+          f"zoompan=z='{z}':x='{x}':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={FPS},"
+          "setsar=1,eq=brightness=-0.03:contrast=1.06:saturation=1.1,format=yuv420p")
+    run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(src), "-vf", vf,
+         "-frames:v", str(frames), "-an", *_VENC, str(dst)], 300)
+
+
 GENERATED_PALETTES = {
     "dark-blue": ("0x0b1f4d", "0x1d6fa5", "0x120a3a"),
     "warm": ("0x3b0d2e", "0xc2410c", "0x7c2d12"),

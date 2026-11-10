@@ -135,9 +135,9 @@ export default function SettingsPage() {
 
         <Card title="Video production">
           <div className="space-y-3">
-            <Field label="Visual source" hint="Only licensed footage (Pexels/Pixabay) or generated backgrounds are used">
+            <Field label="Visual source" hint="auto = stock footage if keys exist, otherwise free AI pictures; ai = always AI pictures">
               <select className={inputCls} value={form.visual_source} onChange={(e) => set("visual_source", e.target.value)}>
-                {["auto", "pexels", "pixabay", "generated"].map((v) => <option key={v}>{v}</option>)}
+                {["auto", "ai", "pexels", "pixabay", "generated"].map((v) => <option key={v}>{v}</option>)}
               </select>
             </Field>
             <div className="grid grid-cols-2 gap-3">

@@ -82,8 +82,10 @@ def run_checks(db: Session, live: bool = True) -> dict[str, Any]:
         checks.append(_check("tts", "Voice-over (Edge TTS)", True, "no key required"))
 
     has_stock = bool(c.pexels_api_key or c.pixabay_api_key)
-    checks.append(_check("stock", "Licensed stock footage", has_stock or s.visual_source == "generated",
-                         "ok" if has_stock else "no Pexels/Pixabay key: generated animated backgrounds will be used",
+    ai_pics = s.visual_source in ("auto", "ai")
+    checks.append(_check("stock", "Scene pictures", has_stock or ai_pics or s.visual_source == "generated",
+                         "licensed stock footage" if has_stock else
+                         ("AI-generated pictures (free, no key)" if ai_pics else "generated animated backgrounds"),
                          blocking=False))
 
     if not youtube.oauth_configured():

@@ -33,7 +33,7 @@ class AppSettings(BaseModel):
     # --- video ---
     min_video_seconds: int = Field(25, ge=10, le=170)
     max_video_seconds: int = Field(50, ge=15, le=175)
-    visual_source: Literal["auto", "pexels", "pixabay", "generated"] = "auto"
+    visual_source: Literal["auto", "ai", "pexels", "pixabay", "generated"] = "auto"
     tts_provider: Optional[Literal["edge", "openai"]] = None  # None -> env TTS_PROVIDER
     tts_voice: str = ""  # empty -> sensible default for the language
     background_style: str = Field("dark-blue", max_length=40)

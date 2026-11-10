@@ -15,7 +15,7 @@ from ..settings_store import get_settings
 from ..stages import PermanentError, heartbeat
 from ..storage import get_storage
 from . import ffmpeg_utils as ff
-from . import stock, subtitles, tts
+from . import images, stock, subtitles, tts
 
 FADE = 0.35
 TAIL = 0.45  # seconds of picture after the last word
@@ -77,13 +77,14 @@ def render_video(db: Session, video: Video) -> None:
 
         # 3) footage per scene (licensed stock, otherwise generated background)
         used: set[str] = set()
+        ai_ok, ai_used, ai_fail = True, 0, 0
         clips_meta: list[dict] = []
         scene_files: list[Path] = []
         for i, (sc, d) in enumerate(zip(scenes, durs)):
             length = d + (FADE if i < len(scenes) - 1 else 0.0)
             dst = work / f"scene{i:02d}.mp4"
             clip = None
-            if s.visual_source != "generated":
+            if s.visual_source in ("auto", "pexels", "pixabay"):
                 clip = stock.find_clip(sc.get("visual_query") or "abstract background", length, work, s.visual_source,
                                        used)
             if clip:
@@ -95,11 +96,33 @@ def render_video(db: Session, video: Video) -> None:
                     log_event("video", f"stock clip {clip.clip_id} unusable, using generated background: {e}",
                               level="WARNING", video_id=video.id)
                     clip = None
+            if not clip and s.visual_source in ("auto", "ai") and ai_ok:
+                prompt = images.build_prompt(sc.get("visual_query") or "", sc.get("voiceover", ""),
+                                             str(script.get("title", "")))
+                pic = images.generate(prompt, work / f"pic{i:02d}.jpg", seed=video.id * 100 + i)
+                if pic:
+                    try:
+                        ff.scene_from_image(pic, dst, length, variant=i)
+                        clips_meta.append({"scene": i, "provider": "pollinations",
+                                           "license": "AI-generated image (Pollinations, flux)", "prompt": prompt[:300]})
+                        ai_used += 1
+                        clip = True  # type: ignore[assignment]
+                    except ff.FFmpegError as e:
+                        log_event("video", f"AI picture unusable, using generated background: {e}",
+                                  level="WARNING", video_id=video.id)
+                    pic.unlink(missing_ok=True)
+                else:
+                    ai_fail += 1
+                    if ai_fail >= 2 and ai_used == 0:  # service is down: stop waiting for it in this render
+                        ai_ok = False
+                        log_event("video", "AI picture service unavailable, using generated backgrounds",
+                                  level="WARNING", video_id=video.id)
             if not clip:
                 ff.scene_generated(dst, length, s.background_style, i + video.id)
                 clips_meta.append({"scene": i, "provider": "generated", "license": "original (procedurally generated)"})
             scene_files.append(dst)
-            Path(clip.path).unlink(missing_ok=True) if clip else None
+            if clip and clip is not True:
+                Path(clip.path).unlink(missing_ok=True)
             heartbeat(db, video)
 
         # 4) montage with transitions
@@ -138,7 +161,7 @@ def render_video(db: Session, video: Video) -> None:
         video.assets = {
             "clips": clips_meta,
             "tts": {"provider": voice["provider"], "voice": voice["voice"]},
-            "note": "All footage is licensed stock (Pexels/Pixabay) or procedurally generated; voice-over is TTS.",
+            "note": "Pictures are licensed stock (Pexels/Pixabay), AI-generated (Pollinations) or procedurally generated; voice-over is TTS.",
         }
         db.commit()
         log_event("video", f"rendered {info['duration']:.1f}s video ({len(scenes)} scenes)", video_id=video.id)
