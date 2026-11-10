@@ -1,12 +1,12 @@
 name: Runner
 
-# The "worker" of the free setup: every 30 minutes it plans content, produces videos (FFmpeg),
+# The "worker" of the free setup: every 15 minutes (GitHub may delay scheduled runs) it plans content, produces videos (FFmpeg),
 # publishes what is due and collects analytics. State lives in the database, so every run
 # simply continues where the previous one stopped. Needs the Secrets listed in docs/FREE.md.
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -66,10 +66,21 @@ jobs:
       - name: FFmpeg and fonts
         if: steps.gate.outputs.skip != 'true'
         run: |
-          if ! command -v ffmpeg >/dev/null || ! fc-list | grep -qi dejavu; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-dejavu-core fonts-liberation
+          # static FFmpeg build: ~10 s instead of ~5 min of `apt install ffmpeg` on every run
+          if ! command -v ffmpeg >/dev/null; then
+            mkdir -p "$HOME/ffbin" && cd "$HOME/ffbin"
+            if curl -fsSL --retry 3 -o ff.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
+               && tar -xJf ff.tar.xz --strip-components=1 && [ -x ffmpeg ]; then
+              sudo install -m 755 ffmpeg ffprobe /usr/local/bin/
+            else
+              sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+            fi
           fi
+          if ! fc-list | grep -qi dejavu; then
+            sudo apt-get install -y -qq --no-install-recommends fonts-dejavu-core fonts-liberation \
+              || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends fonts-dejavu-core fonts-liberation; }
+          fi
+          ffmpeg -version | head -1
 
       - run: pip install -r requirements.txt
         if: steps.gate.outputs.skip != 'true'
