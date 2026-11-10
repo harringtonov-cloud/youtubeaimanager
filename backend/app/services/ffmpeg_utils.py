@@ -56,6 +56,26 @@ def audio_duration(path: str | Path) -> float:
 _VENC = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-r", str(FPS)]
 
 
+def speech_window(path: str | Path, total: float) -> tuple[float, float]:
+    """(start, end) of the audible speech: leading/trailing silence removed. Falls back to (0, total)."""
+    try:
+        out = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af",
+                              "silencedetect=noise=-38dB:d=0.2", "-f", "null", "-"],
+                             capture_output=True, text=True, timeout=120).stderr
+    except Exception:
+        return 0.0, total
+    starts = [float(x) for x in re.findall(r"silence_start: (-?[\d.]+)", out)]
+    ends = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", out)]
+    start, end = 0.0, total
+    if starts and starts[0] <= 0.05 and ends:        # silence at the very beginning
+        start = ends[0]
+    if starts and (len(starts) > len(ends) or (ends and ends[-1] >= total - 0.2)) and starts[-1] > start:
+        end = starts[-1]                             # silence that runs to the end of the file
+    if end - start < total * 0.5:                    # implausible: ignore
+        return 0.0, total
+    return max(0.0, start), min(total, end)
+
+
 def scene_from_clip(src: str | Path, dst: str | Path, duration: float) -> None:
     """Stock clip -> exactly `duration` seconds of 1080x1920, cropped to fill, slightly graded and darkened."""
     vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS},"

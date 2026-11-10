@@ -16,7 +16,7 @@ from ..config import get_config
 from ..events import get_logger
 from ..stages import PermanentError
 from . import ffmpeg_utils as ff
-from .subtitles import estimate_word_timings
+from .subtitles import estimate_word_timings, timings_from_sentences
 
 log = get_logger("tts")
 
@@ -37,7 +37,7 @@ def default_voice(language: str, provider: str) -> str:
     return EDGE_VOICES.get((language or "en").lower().split("-")[0], EDGE_VOICES["en"])
 
 
-async def _edge(text: str, voice: str, out: Path) -> list[dict[str, Any]]:
+async def _edge(text: str, voice: str, out: Path, sentences: Optional[list] = None) -> list[dict[str, Any]]:
     import edge_tts
 
     try:
@@ -52,14 +52,19 @@ async def _edge(text: str, voice: str, out: Path) -> list[dict[str, Any]]:
             elif chunk["type"] == "WordBoundary":
                 start = chunk["offset"] / 1e7
                 words.append({"text": chunk["text"], "start": start, "end": start + chunk["duration"] / 1e7})
+            elif chunk["type"] == "SentenceBoundary" and sentences is not None:
+                start = chunk["offset"] / 1e7
+                sentences.append({"text": chunk["text"], "start": start, "end": start + chunk["duration"] / 1e7})
     return words
 
 
-def _synth_edge(text: str, voice: str, out: Path) -> list[dict[str, Any]]:
+def _synth_edge(text: str, voice: str, out: Path, sentences: Optional[list] = None) -> list[dict[str, Any]]:
     last: Optional[Exception] = None
     for attempt in range(3):
         try:
-            words = asyncio.run(asyncio.wait_for(_edge(text, voice, out), timeout=120))
+            if sentences is not None:
+                sentences.clear()
+            words = asyncio.run(asyncio.wait_for(_edge(text, voice, out, sentences), timeout=120))
             if out.exists() and out.stat().st_size > 1000:
                 return words
             last = RuntimeError("edge-tts returned no audio")
@@ -97,10 +102,11 @@ def synthesize(text: str, language: str, out_path: str | Path, provider: Optiona
     prov = provider or c.tts_provider or "edge"
     v = voice or default_voice(language, prov)
     words: list[dict[str, Any]] = []
+    sentences: list[dict[str, Any]] = []
     used = prov
     if prov == "edge":
         try:
-            words = _synth_edge(text, v, out)
+            words = _synth_edge(text, v, out, sentences)
         except Exception as e:
             if c.tts_api_key or (c.llm_api_key and "openai.com" in (c.tts_base_url or c.llm_base_url)):
                 log.warning("falling back to OpenAI-compatible TTS: %s", e)
@@ -111,6 +117,14 @@ def synthesize(text: str, language: str, out_path: str | Path, provider: Optiona
     else:
         words = _synth_openai(text, v, out)
     duration = ff.audio_duration(out)
-    if len(words) < max(3, len(text.split()) // 3):  # missing / sentence-level timings -> estimate
-        words = estimate_word_timings(text, duration)
-    return {"path": str(out), "duration": duration, "words": words, "provider": used, "voice": v}
+    timing = "word"
+    if len(words) < max(3, len(text.split()) // 3):  # no word-level timings from the TTS
+        n_words = len(text.split())
+        if sentences and sum(len(str(x["text"]).split()) for x in sentences) >= n_words * 0.8:
+            words, timing = timings_from_sentences(sentences), "sentence"
+        else:
+            start, end = ff.speech_window(out, duration)
+            words, timing = estimate_word_timings(text, end - start, start), "estimate"
+    log.info("voice-over %.1fs, caption timings: %s (%d words)", duration, timing, len(words))
+    return {"path": str(out), "duration": duration, "words": words, "provider": used, "voice": v,
+            "timing": timing}

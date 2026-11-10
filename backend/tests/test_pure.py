@@ -32,3 +32,20 @@ def test_slots_dst():
         datetime(2026, 3, 28, tzinfo=timezone.utc), datetime(2026, 3, 31, tzinfo=timezone.utc), ["12:00"], "Europe/Berlin"
     )
     assert d[0].hour == 11 and d[-1].hour == 10
+
+
+def test_estimate_word_timings_respects_speech_window():
+    from app.services.subtitles import estimate_word_timings
+
+    w = estimate_word_timings("one two three four", 4.0, start=0.5)
+    assert abs(w[0]["start"] - 0.5) < 1e-6 and abs(w[-1]["end"] - 4.5) < 0.01
+
+
+def test_timings_from_sentences_reanchors_each_sentence():
+    from app.services.subtitles import timings_from_sentences
+
+    w = timings_from_sentences([{"text": "Hello there world.", "start": 0.4, "end": 1.6},
+                                {"text": "Second sentence here now.", "start": 3.0, "end": 5.0}])
+    assert len(w) == 7
+    assert abs(w[0]["start"] - 0.4) < 1e-6 and abs(w[2]["end"] - 1.6) < 0.01
+    assert abs(w[3]["start"] - 3.0) < 1e-6 and abs(w[-1]["end"] - 5.0) < 0.01  # gap between sentences is kept

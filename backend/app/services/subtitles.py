@@ -12,8 +12,11 @@ MAX_WORDS_PER_CHUNK = 4
 _PUNCT_BREAK = re.compile(r"[.!?…:;,—–-]$")
 
 
-def estimate_word_timings(text: str, duration: float) -> list[dict[str, Any]]:
-    """Fallback when the TTS gives no timings: spread words over the audio by character weight."""
+def estimate_word_timings(text: str, duration: float, start: float = 0.0) -> list[dict[str, Any]]:
+    """Fallback when the TTS gives no timings: spread words over [start, start+duration] by character weight.
+
+    Pass the speech window (leading/trailing silence removed) for a much closer fit.
+    """
     words = text.split()
     if not words or duration <= 0:
         return []
@@ -26,11 +29,23 @@ def estimate_word_timings(text: str, duration: float) -> list[dict[str, Any]]:
             wt += 2.0
         weights.append(wt)
     total = sum(weights)
-    out, t = [], 0.0
+    out, t = [], float(start)
     for w, wt in zip(words, weights):
         d = duration * wt / total
         out.append({"text": w, "start": round(t, 3), "end": round(t + d, 3)})
         t += d
+    return out
+
+
+def timings_from_sentences(sentences: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sentence boundaries from the TTS ({text,start,end}) -> word timings, estimated inside each sentence.
+
+    Errors cannot accumulate across the script: every sentence is re-anchored to its real position.
+    """
+    out: list[dict[str, Any]] = []
+    for sen in sentences:
+        dur = float(sen["end"]) - float(sen["start"])
+        out.extend(estimate_word_timings(str(sen["text"]), dur, float(sen["start"])))
     return out
 
 
