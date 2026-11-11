@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -140,8 +140,19 @@ def approve_video(video_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+def _publish_in_process(video_id: int) -> None:
+    """Free (inline) setup: upload from the API process right now instead of waiting for the next Runner cycle."""
+    from ..runner import execute_stage
+
+    try:
+        execute_stage(video_id, "publish")
+    except Exception as e:  # execute_stage records failures itself; never crash the API process
+        log_event("api", f"publish-now crashed: {e}", level="ERROR", video_id=video_id)
+
+
 @router.post("/videos/{video_id}/publish-now")
-def publish_now(video_id: int, db: Session = Depends(get_db)):
+def publish_now(video_id: int, background: BackgroundTasks, db: Session = Depends(get_db)):
+    from ..config import get_config
     from ..services import youtube
     from ..workers.tasks import enqueue_stage
 
@@ -153,10 +164,15 @@ def publish_now(video_id: int, db: Session = Depends(get_db)):
     v.approved = True
     v.scheduled_at = utcnow()
     db.commit()
+    started = False
     if v.status == READY:
-        enqueue_stage(v.id, "publish")
-    log_event("api", "publish-now requested", video_id=v.id)
-    return {"ok": True, "queued": v.status == READY}
+        if get_config().inline_mode:
+            background.add_task(_publish_in_process, v.id)
+            started = True
+        else:
+            enqueue_stage(v.id, "publish")
+    log_event("api", "publish-now requested" + (" (uploading from the API now)" if started else ""), video_id=v.id)
+    return {"ok": True, "queued": v.status == READY, "started": started}
 
 
 @router.patch("/videos/{video_id}/schedule")
