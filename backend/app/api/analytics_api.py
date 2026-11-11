@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -89,16 +89,16 @@ def insights(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db))
 
 
 @router.post("/sync")
-def sync_now():
+def sync_now(background: BackgroundTasks):
     from ..workers.tasks import sync_analytics_task
+    from .jobs_api import dispatch
 
-    sync_analytics_task.delay()
-    return {"queued": True}
+    return dispatch(sync_analytics_task, "sync_analytics", background)
 
 
 @router.post("/learn")
-def learn_now():
+def learn_now(background: BackgroundTasks):
     from ..workers.tasks import learn_task
+    from .jobs_api import dispatch
 
-    learn_task.delay()
-    return {"queued": True}
+    return dispatch(learn_task, "learn", background)

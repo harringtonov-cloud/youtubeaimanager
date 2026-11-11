@@ -123,3 +123,19 @@ def test_cron_tick_requires_key(anon_client, monkeypatch):
     assert anon_client.get("/api/cron/tick?key=wrong").status_code == 404
     r = anon_client.get("/api/cron/tick?key=s3cret")
     assert r.status_code == 200 and r.json() == {"ok": True, "due": 0}
+
+
+def test_manual_jobs_work_without_a_broker(client, monkeypatch):
+    """Free setup (QUEUE_MODE=inline): the Run buttons must not try to reach Celery/Redis."""
+    from app.config import get_config
+    from app.workers import tasks
+
+    monkeypatch.setattr(get_config(), "queue_mode", "inline", raising=False)
+    ran = []
+    for name in ("sync_analytics_task", "learn_task", "generate_ideas_task"):
+        monkeypatch.setattr(tasks, name, type("T", (), {"__call__": lambda self, n=name: ran.append(n),
+                                                       "delay": lambda self: (_ for _ in ()).throw(RuntimeError("broker"))})())
+    for path in ("/api/analytics/sync", "/api/analytics/learn", "/api/director/run"):
+        r = client.post(path)
+        assert r.status_code == 200 and r.json()["mode"] == "inline", path
+    assert sorted(ran) == ["generate_ideas_task", "learn_task", "sync_analytics_task"]

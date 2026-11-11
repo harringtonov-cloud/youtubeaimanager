@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -62,12 +62,12 @@ def update_idea(idea_id: int, body: dict[str, Any] = Body(...), db: Session = De
 
 
 @router.post("/director/run")
-def run_director():
+def run_director(background: BackgroundTasks):
     from ..workers.tasks import generate_ideas_task
+    from .jobs_api import dispatch
 
-    generate_ideas_task.delay()
     log_event("api", "AI Director run requested by owner")
-    return {"queued": True}
+    return dispatch(generate_ideas_task, "generate_ideas", background)
 
 
 @router.get("/director/state")

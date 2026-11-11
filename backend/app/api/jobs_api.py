@@ -18,6 +18,17 @@ def _run_inline(task, name: str) -> None:
         log_event("api", f"inline job '{name}' failed: {e}", level="ERROR")
 
 
+def dispatch(task, name: str, background: BackgroundTasks) -> dict:
+    """Run a job now: in the API process without a broker (free setup), through Celery otherwise."""
+    if get_config().inline_mode:
+        background.add_task(_run_inline, task, name)
+        log_event("api", f"job '{name}' triggered manually (inline)")
+        return {"queued": True, "job": name, "mode": "inline"}
+    task.delay()
+    log_event("api", f"job '{name}' triggered manually")
+    return {"queued": True, "job": name}
+
+
 @router.post("/run/{name}")
 def run_job(name: str, background: BackgroundTasks):
     """Trigger a scheduled job immediately (dashboard 'Run now' buttons)."""
@@ -30,11 +41,4 @@ def run_job(name: str, background: BackgroundTasks):
         "learn": tasks.learn_task, "verify_youtube": tasks.verify_youtube_task,
         "housekeeping": tasks.housekeeping_task,
     }[name]
-    if get_config().inline_mode:
-        # no broker: light jobs run in the API process; video production is done by the scheduled runner
-        background.add_task(_run_inline, task, name)
-        log_event("api", f"job '{name}' triggered manually (inline)")
-        return {"queued": True, "job": name, "mode": "inline"}
-    task.delay()
-    log_event("api", f"job '{name}' triggered manually")
-    return {"queued": True, "job": name}
+    return dispatch(task, name, background)
