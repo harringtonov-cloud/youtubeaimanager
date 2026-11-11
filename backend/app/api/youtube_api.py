@@ -25,6 +25,7 @@ def _account_dict(db: Session) -> dict:
         "redirect_uri": cfg.oauth_redirect_uri,
         "scopes_required": youtube.SCOPES,
         "quota_blocked": youtube.quota_blocked(db),
+        "block_reason": youtube.block_reason(db),
     }
     if a is None:
         return {**base, "connected": False, "status": "not_connected"}
@@ -70,6 +71,13 @@ def youtube_callback(code: str = Query(None), state: str = Query(None), error: s
         log_event("youtube", f"OAuth callback failed: {e}", level="ERROR")
         return RedirectResponse(f"{front}?{urlencode({'error': str(e)[:300]})}")
     return RedirectResponse(f"{front}?connected=1")
+
+
+@router.post("/youtube/resume", dependencies=[Depends(require_admin)])
+def resume_publishing(db: Session = Depends(get_db)):
+    """Clear the publishing pause (e.g. after verifying the channel by phone, which raises the upload limit)."""
+    youtube.clear_block(db)
+    return {"ok": True}
 
 
 @router.post("/youtube/verify", dependencies=[Depends(require_admin)])

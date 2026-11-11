@@ -52,7 +52,7 @@ export default function YouTubePage() {
               <div className="truncate text-lg font-semibold">{data.channel_title ?? "Not connected"}</div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <Badge tone={statusTone(data.status)}>{data.status}</Badge>
-                {data.quota_blocked && <Badge tone="warn">API quota exhausted</Badge>}
+                {data.quota_blocked && <Badge tone="warn">{data.block_reason === "upload_limit" ? "Upload limit reached: publishing paused" : "API quota exhausted: publishing paused"}</Badge>}
               </div>
             </div>
           </div>
@@ -74,6 +74,7 @@ export default function YouTubePage() {
             {data.status !== "not_connected" && (
               <>
                 <Button busy={busy === "verify"} onClick={() => run("verify", () => api("/api/youtube/verify", { method: "POST" }).then(() => reload()), "Verification finished")}>Verify now</Button>
+                {data.quota_blocked && <Button busy={busy === "resume"} onClick={() => run("resume", () => api("/api/youtube/resume", { method: "POST" }).then(() => reload()), "Publishing resumed")}>Resume publishing</Button>}
                 <Button variant="danger" busy={busy === "disc"} onClick={() => { if (confirm("Disconnect YouTube? Auto-publishing will stop.")) run("disc", () => api("/api/youtube/disconnect", { method: "POST" }).then(() => reload()), "Disconnected"); }}>Disconnect</Button>
               </>
             )}

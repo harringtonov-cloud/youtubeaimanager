@@ -328,9 +328,25 @@ def quota_blocked(db: Session) -> bool:
         return False
 
 
-def block_for_quota(db: Session, hours: float = 3.0) -> None:
+BLOCK_REASON_FLAG = "yt_block_reason"
+
+
+def block_reason(db: Session) -> str:
+    return (get_flag(db, BLOCK_REASON_FLAG) or "quota") if quota_blocked(db) else ""
+
+
+def block_for_quota(db: Session, hours: float = 3.0, reason: str = "quota") -> None:
     set_flag(db, QUOTA_FLAG, (utcnow() + timedelta(hours=hours)).isoformat())
-    log_event("youtube", f"YouTube API quota exhausted — publishing paused for {hours:g}h", level="WARNING")
+    set_flag(db, BLOCK_REASON_FLAG, reason)
+    what = ("YouTube upload limit of the channel reached (verify the channel by phone: youtube.com/verify)"
+            if reason == "upload_limit" else "YouTube API quota exhausted")
+    log_event("youtube", f"{what} - publishing paused for {hours:g}h", level="WARNING")
+
+
+def clear_block(db: Session) -> None:
+    set_flag(db, QUOTA_FLAG, "")
+    set_flag(db, BLOCK_REASON_FLAG, "")
+    log_event("youtube", "publishing pause cleared by owner")
 
 
 # --------------------------------------------------------------------------- uploads

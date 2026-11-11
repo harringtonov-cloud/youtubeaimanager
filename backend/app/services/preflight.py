@@ -101,7 +101,11 @@ def run_checks(db: Session, live: bool = True) -> dict[str, Any]:
         checks.append(_check("youtube", "YouTube channel connected", acct.status == "connected", acct.status))
 
     if youtube.quota_blocked(db):
-        checks.append(_check("quota", "YouTube API quota", False, "quota exhausted recently — resets daily",
+        limit = youtube.block_reason(db) == "upload_limit"
+        checks.append(_check("quota", "YouTube upload limit" if limit else "YouTube API quota", False,
+                             "channel upload limit reached: verify the channel by phone (youtube.com/verify), "
+                             "then press Resume on the YouTube Connection page" if limit
+                             else "quota exhausted recently - resets daily (about 13:00 Tashkent time)",
                              blocking=False))
 
     checks.append(_check("schedule", "Publishing schedule set", bool(s.publish_times),

@@ -165,7 +165,7 @@ def publish_video(db: Session, video: Video) -> None:
         pub.last_error = str(e)[:500]
         db.commit()
         if e.reason in ("uploadLimitExceeded",):
-            youtube.block_for_quota(db, hours=12)
+            youtube.block_for_quota(db, hours=12, reason="upload_limit")
             raise Deferred(str(e))
         if e.transient:
             raise  # backoff retry (stage machinery)
