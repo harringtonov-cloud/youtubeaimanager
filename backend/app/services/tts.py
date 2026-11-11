@@ -16,7 +16,7 @@ from ..config import get_config
 from ..events import get_logger
 from ..stages import PermanentError
 from . import ffmpeg_utils as ff
-from .subtitles import estimate_word_timings, timings_from_sentences
+from .subtitles import attach_punctuation, estimate_word_timings, timings_from_sentences
 
 log = get_logger("tts")
 
@@ -125,6 +125,8 @@ def synthesize(text: str, language: str, out_path: str | Path, provider: Optiona
         else:
             start, end = ff.speech_window(out, duration)
             words, timing = estimate_word_timings(text, end - start, start), "estimate"
+    if timing == "word":
+        words = attach_punctuation(words, text)
     log.info("voice-over %.1fs, caption timings: %s (%d words)", duration, timing, len(words))
     return {"path": str(out), "duration": duration, "words": words, "provider": used, "voice": v,
             "timing": timing}

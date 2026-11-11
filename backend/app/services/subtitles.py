@@ -7,9 +7,36 @@ from __future__ import annotations
 import re
 from typing import Any
 
-MAX_CHARS_PER_LINE = 16
+MAX_CHARS_PER_LINE = 20
 MAX_WORDS_PER_CHUNK = 4
 _PUNCT_BREAK = re.compile(r"[.!?…:;,—–-]$")
+_SENTENCE_END = re.compile(r"[.!?…][\"')\]]*$")
+
+
+def _norm(w: str) -> str:
+    return re.sub(r"[^\w]+", "", w.lower())
+
+
+def attach_punctuation(words: list[dict[str, Any]], text: str) -> list[dict[str, Any]]:
+    """TTS word boundaries come without punctuation: copy the script's tokens back (with their . , ! ?).
+
+    Needed so captions can break at sentence ends. Words that cannot be matched keep their own text.
+    """
+    tokens = text.split()
+    ni, out = 0, []
+    for w in words:
+        nw = _norm(str(w["text"]))
+        hit = None
+        for j in range(ni, min(len(tokens), ni + 4)):
+            if nw and _norm(tokens[j]) == nw:
+                hit = j
+                break
+        if hit is not None:
+            out.append({**w, "text": tokens[hit]})
+            ni = hit + 1
+        else:
+            out.append(w)
+    return out
 
 
 def estimate_word_timings(text: str, duration: float, start: float = 0.0) -> list[dict[str, Any]]:
@@ -49,25 +76,32 @@ def timings_from_sentences(sentences: list[dict[str, Any]]) -> list[dict[str, An
     return out
 
 
+def _split_balanced(seg: list[dict[str, Any]], max_words: int, max_chars: int) -> list[list[dict[str, Any]]]:
+    """Cut one sentence into captions of similar size (no lonely last word)."""
+    if not seg:
+        return []
+    k = -(-len(seg) // max_words)                      # ceil
+    while True:
+        size = -(-len(seg) // k)
+        parts = [seg[i:i + size] for i in range(0, len(seg), size)]
+        too_long = any(sum(len(w["text"]) + 1 for w in p) - 1 > max_chars for p in parts)
+        if not too_long or k >= len(seg):
+            return parts
+        k += 1
+
+
 def chunk_words(words: list[dict[str, Any]], max_words: int = MAX_WORDS_PER_CHUNK,
                 max_chars: int = MAX_CHARS_PER_LINE) -> list[list[dict[str, Any]]]:
-    """Group words into readable 1-4 word captions, preferring breaks at punctuation."""
+    """Group words into readable 1-4 word captions. Sentences never share a caption."""
+    clean = [{**w, "text": str(w["text"]).strip()} for w in words if str(w["text"]).strip()]
     chunks: list[list[dict[str, Any]]] = []
-    cur: list[dict[str, Any]] = []
-    for w in words:
-        text = str(w["text"]).strip()
-        if not text:
-            continue
-        cur_len = sum(len(x["text"]) + 1 for x in cur) + len(text)
-        if cur and (len(cur) >= max_words or cur_len > max_chars):
-            chunks.append(cur)
-            cur = []
-        cur.append({**w, "text": text})
-        if _PUNCT_BREAK.search(text) and len(cur) >= 2:
-            chunks.append(cur)
-            cur = []
-    if cur:
-        chunks.append(cur)
+    seg: list[dict[str, Any]] = []
+    for w in clean:
+        seg.append(w)
+        if _SENTENCE_END.search(w["text"]):
+            chunks.extend(_split_balanced(seg, max_words, max_chars))
+            seg = []
+    chunks.extend(_split_balanced(seg, max_words, max_chars))
     return chunks
 
 

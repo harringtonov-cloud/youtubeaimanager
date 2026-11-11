@@ -58,3 +58,19 @@ def test_emphasis_skips_text_that_repeats_the_voiceover():
               {"on_screen_text": "10x faster", "voiceover": "Results arrive in seconds."}]
     ev = emphasis_events(scenes, [4.0, 4.0])
     assert [e["text"] for e in ev] == ["10x faster"]
+
+
+def test_attach_punctuation_and_sentence_breaks():
+    from app.services.subtitles import attach_punctuation, chunk_words
+
+    text = "AI predicts disasters. It analyzes data fast, then warns people."
+    raw = [{"text": t, "start": i * 0.3, "end": i * 0.3 + 0.25}
+           for i, t in enumerate("AI predicts disasters It analyzes data fast then warns people".split())]
+    words = attach_punctuation(raw, text)
+    assert words[2]["text"] == "disasters." and words[6]["text"] == "fast,"
+    chunks = chunk_words(words)
+    assert all(not (len(ch) > 1 and ch[0]["text"] == "It" and False) for ch in chunks)
+    # no caption mixes the end of sentence 1 with the start of sentence 2
+    for ch in chunks:
+        texts = [w["text"] for w in ch]
+        assert not ("disasters." in texts and "It" in texts)
