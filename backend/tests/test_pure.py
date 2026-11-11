@@ -49,3 +49,12 @@ def test_timings_from_sentences_reanchors_each_sentence():
     assert len(w) == 7
     assert abs(w[0]["start"] - 0.4) < 1e-6 and abs(w[2]["end"] - 1.6) < 0.01
     assert abs(w[3]["start"] - 3.0) < 1e-6 and abs(w[-1]["end"] - 5.0) < 0.01  # gap between sentences is kept
+
+
+def test_emphasis_skips_text_that_repeats_the_voiceover():
+    from app.services.video_creator import emphasis_events
+
+    scenes = [{"on_screen_text": "Saving Lives", "voiceover": "This technology is saving lives every day."},
+              {"on_screen_text": "10x faster", "voiceover": "Results arrive in seconds."}]
+    ev = emphasis_events(scenes, [4.0, 4.0])
+    assert [e["text"] for e in ev] == ["10x faster"]

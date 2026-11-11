@@ -43,6 +43,14 @@ export default function VideoDetail({ id, onClose, onChanged }: { id: number | n
       {error && <ErrorBox>{error}</ErrorBox>}
       {!v && !error && <div className="text-sm text-muted">Loading…</div>}
       {v && (
+        <>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {v.status === "failed" && <Button small variant="primary" busy={busy === "retry"} onClick={() => act("retry", `/api/videos/${v.id}/retry`, "Retry queued")}>Retry failed stage</Button>}
+              {!["published", "publishing", "cancelled", "failed"].includes(v.status) && !v.approved && <Button small busy={busy === "approve"} onClick={() => act("approve", `/api/videos/${v.id}/approve`, "Approved for publishing")}>Approve</Button>}
+              {!["published", "publishing", "cancelled", "failed"].includes(v.status) && <Button small variant="primary" busy={busy === "pub"} onClick={() => { if (confirm("Publish this video to YouTube now?")) act("pub", `/api/videos/${v.id}/publish-now`, "Publishing queued"); }}>Publish now</Button>}
+              {!["published", "publishing", "cancelled"].includes(v.status) && <Button small variant="danger" busy={busy === "cancel"} onClick={() => { if (confirm("Cancel this video?")) act("cancel", `/api/videos/${v.id}/cancel`, "Cancelled"); }}>Cancel</Button>}
+              {!["published", "publishing"].includes(v.status) && <Button small variant="danger" busy={busy === "del"} onClick={() => { if (confirm("Delete this video for good? The files are removed and the idea will not be used again.")) run("del", async () => { await api(`/api/videos/${v.id}`, { method: "DELETE" }); onChanged(); onClose(); }, "Deleted"); }}>Delete</Button>}
+            </div>
         <div className="grid gap-5 md:grid-cols-[220px_1fr]">
           <div className="space-y-3">
             {videoSrc ? (
@@ -71,12 +79,6 @@ export default function VideoDetail({ id, onClose, onChanged }: { id: number | n
             {v.publication?.url && <a href={v.publication.url} target="_blank" rel="noreferrer" className="text-brand underline">{v.publication.url}</a>}
             {v.publication?.last_error && <ErrorBox>Upload: {v.publication.last_error}</ErrorBox>}
 
-            <div className="flex flex-wrap gap-2">
-              {v.status === "failed" && <Button small variant="primary" busy={busy === "retry"} onClick={() => act("retry", `/api/videos/${v.id}/retry`, "Retry queued")}>Retry failed stage</Button>}
-              {!["published", "publishing", "cancelled", "failed"].includes(v.status) && !v.approved && <Button small busy={busy === "approve"} onClick={() => act("approve", `/api/videos/${v.id}/approve`, "Approved for publishing")}>Approve</Button>}
-              {!["published", "publishing", "cancelled", "failed"].includes(v.status) && <Button small variant="primary" busy={busy === "pub"} onClick={() => { if (confirm("Publish this video to YouTube now?")) act("pub", `/api/videos/${v.id}/publish-now`, "Publishing queued"); }}>Publish now</Button>}
-              {!["published", "publishing", "cancelled"].includes(v.status) && <Button small variant="danger" busy={busy === "cancel"} onClick={() => { if (confirm("Cancel this video?")) act("cancel", `/api/videos/${v.id}/cancel`, "Cancelled"); }}>Cancel</Button>}
-            </div>
 
             {v.seo && (
               <section>
@@ -111,6 +113,7 @@ export default function VideoDetail({ id, onClose, onChanged }: { id: number | n
             )}
           </div>
         </div>
+        </>
       )}
     </Modal>
   );

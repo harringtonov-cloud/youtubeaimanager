@@ -72,3 +72,31 @@ def test_video_listing_and_cancel(client, db):
 def test_media_blocks_path_traversal(client):
     r = client.get("/api/media/..%2F..%2Fetc%2Fpasswd")
     assert r.status_code in (400, 404)
+
+
+def test_delete_video_removes_record_and_rejects_idea(client, db):
+    from app.models import Idea, Publication, Video
+
+    idea = Idea(topic="t", fingerprint="fp-del", status="used")
+    db.add(idea)
+    db.flush()
+    v = Video(title="x", status="failed", idea_id=idea.id)
+    db.add(v)
+    db.flush()
+    db.add(Publication(video_id=v.id))
+    db.commit()
+    vid, iid = v.id, idea.id
+    assert client.delete(f"/api/videos/{vid}").status_code == 200
+    db.expire_all()
+    assert db.get(Video, vid) is None
+    assert db.get(Idea, iid).status == "rejected"  # same topic is not generated again
+    assert client.delete(f"/api/videos/{vid}").status_code == 404
+
+
+def test_published_video_cannot_be_deleted(client, db):
+    from app.models import Video
+
+    v = Video(title="live", status="published")
+    db.add(v)
+    db.commit()
+    assert client.delete(f"/api/videos/{v.id}").status_code == 400

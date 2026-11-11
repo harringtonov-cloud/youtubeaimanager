@@ -99,6 +99,35 @@ def cancel_video(video_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@router.delete("/videos/{video_id}")
+def delete_video(video_id: int, db: Session = Depends(get_db)):
+    """Remove a video that is not on YouTube (failed, ready, cancelled, ...): record, files and the pending upload.
+
+    The idea stays in the database as 'rejected' so the same topic is not generated again.
+    """
+    v = _get_video(db, video_id)
+    pub = v.publication
+    if v.status in (PUBLISHED, PUBLISHING) or (pub is not None and pub.youtube_video_id):
+        raise HTTPException(400, "this video is (being) published on YouTube: delete it in YouTube Studio instead")
+    keys = {k for k in (v.video_key, v.subtitle_key, v.thumbnail_key, f"videos/{v.id}/frame.jpg") if k}
+    title, idea = v.title, v.idea
+    if pub is not None:
+        db.delete(pub)
+        db.flush()
+    db.delete(v)
+    if idea is not None:
+        idea.status = "rejected"
+    db.commit()
+    storage = get_storage()
+    for k in keys:
+        try:
+            storage.delete(k)
+        except Exception:  # a leftover file is harmless; the record is already gone
+            pass
+    log_event("api", f"video #{video_id} deleted by owner ({title})")
+    return {"ok": True}
+
+
 @router.post("/videos/{video_id}/approve")
 def approve_video(video_id: int, db: Session = Depends(get_db)):
     """Owner approval: the video becomes eligible for publishing at its scheduled time."""

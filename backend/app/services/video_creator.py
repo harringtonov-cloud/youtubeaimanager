@@ -43,10 +43,18 @@ def scene_durations(scene_texts: list[str], words: list[dict[str, Any]], total: 
     return [d * scale for d in durs]
 
 
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"\w+", text.lower()) if len(w) > 2}
+
+
 def emphasis_events(scenes: list[dict], durs: list[float]) -> list[dict[str, Any]]:
+    """Big on-screen text per scene. Skipped when it only repeats what the captions already say."""
     out, t = [], 0.0
     for sc, d in zip(scenes, durs):
         txt = (sc.get("on_screen_text") or "").strip()
+        ew = _words(txt)
+        if txt and ew and len(ew & _words(sc.get("voiceover", ""))) / len(ew) >= 0.6:
+            txt = ""  # duplicate of the spoken / captioned words
         if txt:
             out.append({"text": txt, "start": t + 0.15, "end": t + min(d, 2.6)})
         t += d
