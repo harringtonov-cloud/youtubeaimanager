@@ -117,7 +117,7 @@ def delete_video(video_id: int, from_youtube: bool = Query(False), db: Session =
         try:
             youtube.api(db, "DELETE", f"{youtube.API}/videos", params={"id": yt_id})
         except youtube.YouTubeError as e:
-            if e.status_code != 404:  # 404 = already deleted in YouTube Studio: fine
+            if e.status != 404:  # 404 = already deleted in YouTube Studio: fine
                 raise HTTPException(502, f"YouTube refused to delete the video: {e}")
     keys = {k for k in (v.video_key, v.subtitle_key, v.thumbnail_key, f"videos/{v.id}/frame.jpg") if k}
     title, idea = v.title, v.idea
