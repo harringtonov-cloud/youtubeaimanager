@@ -93,10 +93,22 @@ def test_delete_video_removes_record_and_rejects_idea(client, db):
     assert client.delete(f"/api/videos/{vid}").status_code == 404
 
 
-def test_published_video_cannot_be_deleted(client, db):
-    from app.models import Video
+def test_published_video_can_be_removed_from_the_list(client, db):
+    from app.models import Publication, Video
 
     v = Video(title="live", status="published")
+    db.add(v)
+    db.flush()
+    db.add(Publication(video_id=v.id, youtube_video_id="abc123"))
+    db.commit()
+    assert client.delete(f"/api/videos/{v.id}").status_code == 200  # list only: YouTube is not touched
+    assert client.get(f"/api/videos/{v.id}").status_code == 404
+
+
+def test_uploading_video_cannot_be_deleted(client, db):
+    from app.models import Video
+
+    v = Video(title="busy", status="publishing")
     db.add(v)
     db.commit()
     assert client.delete(f"/api/videos/{v.id}").status_code == 400

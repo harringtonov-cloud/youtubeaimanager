@@ -100,15 +100,25 @@ def cancel_video(video_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/videos/{video_id}")
-def delete_video(video_id: int, db: Session = Depends(get_db)):
-    """Remove a video that is not on YouTube (failed, ready, cancelled, ...): record, files and the pending upload.
+def delete_video(video_id: int, from_youtube: bool = Query(False), db: Session = Depends(get_db)):
+    """Remove a video from the manager: record, files and any pending upload.
 
-    The idea stays in the database as 'rejected' so the same topic is not generated again.
+    A published video is removed from the list only (use this after deleting it in YouTube Studio), or with
+    from_youtube=true it is deleted from the channel as well. The idea stays 'rejected' so the topic is not reused.
     """
+    from ..services import youtube
+
     v = _get_video(db, video_id)
     pub = v.publication
-    if v.status in (PUBLISHED, PUBLISHING) or (pub is not None and pub.youtube_video_id):
-        raise HTTPException(400, "this video is (being) published on YouTube: delete it in YouTube Studio instead")
+    if v.status == PUBLISHING:
+        raise HTTPException(400, "this video is being uploaded right now; try again in a minute")
+    yt_id = pub.youtube_video_id if pub is not None else None
+    if from_youtube and yt_id:
+        try:
+            youtube.api(db, "DELETE", f"{youtube.API}/videos", params={"id": yt_id})
+        except youtube.YouTubeError as e:
+            if e.status_code != 404:  # 404 = already deleted in YouTube Studio: fine
+                raise HTTPException(502, f"YouTube refused to delete the video: {e}")
     keys = {k for k in (v.video_key, v.subtitle_key, v.thumbnail_key, f"videos/{v.id}/frame.jpg") if k}
     title, idea = v.title, v.idea
     if pub is not None:
@@ -124,7 +134,7 @@ def delete_video(video_id: int, db: Session = Depends(get_db)):
             storage.delete(k)
         except Exception:  # a leftover file is harmless; the record is already gone
             pass
-    log_event("api", f"video #{video_id} deleted by owner ({title})")
+    log_event("api", f"video #{video_id} removed by owner ({title})" + (" and deleted from YouTube" if from_youtube and yt_id else ""))
     return {"ok": True}
 
 
