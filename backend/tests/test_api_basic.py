@@ -100,3 +100,14 @@ def test_published_video_cannot_be_deleted(client, db):
     db.add(v)
     db.commit()
     assert client.delete(f"/api/videos/{v.id}").status_code == 400
+
+
+def test_cron_tick_requires_key(anon_client, monkeypatch):
+    from app.config import get_config
+
+    monkeypatch.setattr(get_config(), "cron_key", "", raising=False)
+    assert anon_client.get("/api/cron/tick?key=x").status_code == 404  # disabled without a key
+    monkeypatch.setattr(get_config(), "cron_key", "s3cret", raising=False)
+    assert anon_client.get("/api/cron/tick?key=wrong").status_code == 404
+    r = anon_client.get("/api/cron/tick?key=s3cret")
+    assert r.status_code == 200 and r.json() == {"ok": True, "due": 0}

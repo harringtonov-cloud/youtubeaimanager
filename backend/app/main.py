@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from .config import get_config
 from .events import get_logger, log_event, setup_logging
 
-from .api import analytics_api, director_api, jobs_api, logs, media, settings_api, system, videos, youtube_api
+from .api import analytics_api, cron_api, director_api, jobs_api, logs, media, settings_api, system, videos, youtube_api
 
 log = get_logger("api")
 
@@ -43,5 +43,5 @@ async def unhandled(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "internal server error"})
 
 
-for module in (system, settings_api, logs, media, videos, youtube_api, director_api, analytics_api, jobs_api):
+for module in (system, settings_api, logs, media, videos, youtube_api, director_api, analytics_api, jobs_api, cron_api):
     app.include_router(module.router)

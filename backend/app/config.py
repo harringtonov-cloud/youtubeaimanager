@@ -23,6 +23,7 @@ class Config(BaseSettings):
     # "celery" = always-on worker + Redis; "inline" = no Redis/Celery: a scheduled runner
     # (python -m app.runner, e.g. GitHub Actions cron) executes the pipeline in-process.
     queue_mode: str = "celery"
+    cron_key: str = ""   # secret for GET /api/cron/tick (external pinger: UptimeRobot / cron-job.org)
     runner_budget_minutes: int = 45
 
     # llm
