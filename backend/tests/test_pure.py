@@ -74,3 +74,26 @@ def test_attach_punctuation_and_sentence_breaks():
     for ch in chunks:
         texts = [w["text"] for w in ch]
         assert not ("disasters." in texts and "It" in texts)
+
+
+def test_digest_lists_top_performers_with_likes(db):
+    from datetime import timedelta
+
+    from app.models import AnalyticsSnapshot, Publication, Video, utcnow
+    from app.services import learning
+
+    now = utcnow()
+    for i, (views, likes) in enumerate([(50, 2), (900, 70)]):
+        v = Video(title=f"v{i}", status="published")
+        db.add(v)
+        db.flush()
+        p = Publication(video_id=v.id, status="published", title=f"Title {i}", youtube_video_id=f"yt{i}",
+                        published_at=now - timedelta(hours=30))
+        db.add(p)
+        db.flush()
+        db.add(AnalyticsSnapshot(publication_id=p.id, views=views, likes=likes, comments=1, avg_view_percentage=80.0))
+    db.commit()
+    top = learning.top_performers(db)
+    assert [t["title"] for t in top] == ["Title 1", "Title 0"]
+    d = learning.digest(db)
+    assert "TOP PERFORMERS" in d and "900 views, 70 likes" in d

@@ -26,6 +26,37 @@ def words_per_second(code: str) -> float:
             "ko": 3.0}.get(c, 2.5)
 
 
+def top_performers(db: Session, n: int = 3) -> list[dict[str, Any]]:
+    """Best videos so far by views per hour (fair to fresh videos), with their likes, retention and format."""
+    from datetime import timedelta
+
+    from ..models import utcnow
+
+    now = utcnow()
+    pubs = db.execute(
+        select(Publication).where(Publication.status == "published")
+        .options(selectinload(Publication.snapshots), selectinload(Publication.video).selectinload(Video.idea))
+    ).scalars().all()
+    rows = []
+    for p in pubs:
+        if not p.snapshots or not p.published_at or p.published_at > now - timedelta(hours=3):
+            continue
+        sn = max(p.snapshots, key=lambda x: x.fetched_at)
+        if sn.views <= 0:
+            continue
+        hours = max((now - p.published_at).total_seconds() / 3600.0, 6.0)
+        idea = p.video.idea if p.video else None
+        rows.append({
+            "title": p.title, "views": sn.views, "likes": sn.likes, "comments": sn.comments,
+            "retention": sn.avg_view_percentage, "rate": sn.views / hours,
+            "topic": idea.topic if idea else "", "angle": getattr(idea, "angle", "") if idea else "",
+            "category": idea.category if idea else "", "hook_style": idea.hook_style if idea else "",
+            "keywords": list(idea.keywords or []) if idea else [],
+        })
+    rows.sort(key=lambda r: r["rate"], reverse=True)
+    return rows[:n]
+
+
 def digest(db: Session, max_chars: int = 1800) -> str:
     """Human-readable summary of what worked / what didn't, for LLM prompts."""
     parts: list[str] = []
@@ -45,18 +76,15 @@ def digest(db: Session, max_chars: int = 1800) -> str:
             worst = ", ".join(p.key for p in rows[-2:])
             parts.append(f"{label} that underperformed: {worst}")
 
-    pubs = db.execute(
-        select(Publication).where(Publication.status == "published")
-        .options(selectinload(Publication.snapshots)).order_by(Publication.published_at.desc()).limit(40)
-    ).scalars().all()
-    scored = []
-    for p in pubs:
-        if p.snapshots:
-            s = max(p.snapshots, key=lambda x: x.fetched_at)
-            scored.append((s.views, p.title))
-    scored.sort(reverse=True)
-    if scored:
-        parts.append("Best titles so far: " + "; ".join(f"\"{t}\" ({v} views)" for v, t in scored[:3]))
+    winners = top_performers(db)
+    if winners:
+        lines = []
+        for w in winners:
+            ret = f", {w['retention']:.0f}% watched" if w["retention"] else ""
+            lines.append(f"\"{w['title']}\" - {w['views']} views, {w['likes']} likes{ret}; category={w['category']}, "
+                         f"hook style={w['hook_style']}, keywords={', '.join(w['keywords'][:4])}")
+        parts.insert(0, "TOP PERFORMERS (our audience clearly likes these - make close relatives of them):\n- "
+                     + "\n- ".join(lines))
 
     if not parts:
         return "No performance data yet - explore broadly and vary topics, hooks and formats."

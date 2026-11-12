@@ -38,6 +38,8 @@ def _system_prompt(s: AppSettings) -> str:
 
 def _user_prompt(s: AppSettings, signals: list[dict], digest: str, recent: list[str], n: int) -> str:
     exploit = max(0, round(n * (1 - s.explore_ratio)))
+    if "TOP PERFORMERS" in digest:  # we have winners: lean into them
+        exploit = max(exploit, round(n * 0.7))
     explore = n - exploit
     sig = "\n".join(f"- {x['title']} ({x['source']}{', ' + x['signal'] if x.get('signal') else ''})"
                     for x in signals[:30]) or "- (no trend data available)"
@@ -57,8 +59,10 @@ CURRENT TREND SIGNALS (inspiration only - do not copy titles, connect them to th
 TOPICS ALREADY COVERED OR PLANNED (never repeat or paraphrase these):
 {rec}
 
-Create {n} new video ideas: {exploit} that build on what worked (new angles on winning themes) and {explore} that
-explore fresh themes within the niche. Every idea must be a specific, surprising, verifiable topic - not a vague theme.
+Create {n} new video ideas: {exploit} that build on what worked and {explore} that explore fresh themes within the niche.
+If TOP PERFORMERS are listed above, at least half of the "build on what worked" ideas must be close relatives of them:
+same category and hook style, the same kind of payoff, but a clearly different specific subject (a "part 2", the next
+surprising fact, the opposite case, a related thing the audience will ask about). Never repeat or paraphrase a covered topic. Every idea must be a specific, surprising, verifiable topic - not a vague theme.
 
 Return JSON: {{"ideas": [{{"topic": "specific topic, max 100 chars", "angle": "the unique angle / payoff in one sentence",
 "hook": "first spoken sentence (max 15 words)", "keywords": ["3-6 search keywords, lowercase"],

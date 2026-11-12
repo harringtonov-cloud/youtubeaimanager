@@ -16,8 +16,8 @@ from .text_utils import normalize
 
 log = get_logger("analytics")
 
-MIN_VIDEOS_TO_LEARN = 3
-MATURITY = timedelta(hours=24)  # younger videos have too little data to judge
+MIN_VIDEOS_TO_LEARN = 2
+MATURITY = timedelta(hours=12)  # younger videos have too little data to judge
 
 
 # --------------------------------------------------------------------------- collection
