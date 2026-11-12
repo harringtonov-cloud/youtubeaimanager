@@ -159,6 +159,8 @@ export default function SettingsPage() {
               </select>
             </Field>
             <Field label="Default category ID" hint="27 = Education, 28 = Science & Technology"><input className={inputCls} value={form.category_id} onChange={(e) => set("category_id", e.target.value)} /></Field>
+            <Toggle checked={form.music_enabled} onChange={(v) => set("music_enabled", v)} label="Background music" hint="Soft ambient music that gets quieter while the voice speaks" />
+            <Toggle checked={form.first_comment_enabled} onChange={(v) => set("first_comment_enabled", v)} label="Post a first comment" hint="After publishing, adds a question to boost replies (skipped if YouTube refuses)" />
             <Toggle checked={form.require_manual_approval} onChange={(v) => set("require_manual_approval", v)} label="Require my approval before publishing" hint="Videos wait until you press Approve in Video Studio" />
             <Toggle checked={form.synthetic_media_disclosure} onChange={(v) => set("synthetic_media_disclosure", v)} label="Disclose AI-generated content" hint="Adds a note to the description and sets YouTube’s altered/synthetic content flag" />
             <Toggle checked={form.made_for_kids} onChange={(v) => set("made_for_kids", v)} label="Made for kids" hint="Leave off unless your channel targets children (disables comments etc.)" />

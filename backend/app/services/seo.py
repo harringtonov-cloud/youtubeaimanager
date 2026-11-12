@@ -52,7 +52,11 @@ Rules:
   "subtext": "optional 1-3 words or empty", "mood": "one of: shock, curious, calm, energetic, dark"}}
 
 Return JSON: {{"title": "", "description": "", "hashtags": [], "tags": [], "keywords": {{"primary": "", "secondary": []}},
-"category_id": "", "thumbnail": {{"text": "", "subtext": "", "mood": ""}}}}"""
+"category_id": "", "thumbnail": {{"text": "", "subtext": "", "mood": ""}},
+"comment": ""}}
+
+comment: one short pinned-style first comment (max 140 characters, in the video language) that asks viewers a
+specific, easy-to-answer question related to the video so they reply. No links, no hashtags."""
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
@@ -91,6 +95,8 @@ def sanitize(data: dict, s: AppSettings, fallback_title: str) -> dict:
     cat = str(data.get("category_id", "")).strip()
     category_id = cat if cat in CATEGORIES else (s.category_id if s.category_id in CATEGORIES else "27")
 
+    comment = re.sub(r"\s+", " ", re.sub(r"[<>#]|https?://\S+", "", str(data.get("comment", "")))).strip()[:150]
+
     th = data.get("thumbnail") if isinstance(data.get("thumbnail"), dict) else {}
     mood = str(th.get("mood", "")).lower()
     thumbnail = {
@@ -101,6 +107,7 @@ def sanitize(data: dict, s: AppSettings, fallback_title: str) -> dict:
     return {
         "title": title, "description": description, "hashtags": hashtags, "tags": tags, "keywords": keywords,
         "category_id": category_id, "category_name": CATEGORIES[category_id], "thumbnail": thumbnail,
+        "comment": comment,
     }
 
 

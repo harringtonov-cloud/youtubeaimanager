@@ -37,6 +37,9 @@ class AppSettings(BaseModel):
     tts_provider: Optional[Literal["edge", "openai"]] = None  # None -> env TTS_PROVIDER
     tts_voice: str = ""  # empty -> sensible default for the language
     background_style: str = Field("dark-blue", max_length=40)
+    music_enabled: bool = True
+    music_volume: float = Field(0.12, ge=0.02, le=0.4)
+    first_comment_enabled: bool = True
 
     # --- publishing ---
     auto_publish_enabled: bool = False

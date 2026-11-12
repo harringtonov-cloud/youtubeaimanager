@@ -493,6 +493,12 @@ def set_thumbnail(db: Session, youtube_video_id: str, image_path: str | Path) ->
     _raise_for(r)
 
 
+def post_comment(db: Session, youtube_video_id: str, text: str) -> None:
+    api(db, "POST", f"{API}/commentThreads", params={"part": "snippet"},
+        json_body={"snippet": {"videoId": youtube_video_id,
+                               "topLevelComment": {"snippet": {"textOriginal": text}}}})
+
+
 def video_details(db: Session, ids: list[str]) -> dict[str, dict[str, Any]]:
     """Public statistics for up to 50 ids per call."""
     out: dict[str, dict[str, Any]] = {}

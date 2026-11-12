@@ -26,7 +26,10 @@ STYLE = ("cinematic illustration, ultra detailed, vivid colors, dramatic lightin
 _last_call = 0.0
 
 
-def build_prompt(visual_query: str, narration: str = "", topic: str = "") -> str:
+def build_prompt(visual_query: str, narration: str = "", topic: str = "", image_prompt: str = "") -> str:
+    ip = re.sub(r"\s+", " ", image_prompt or "").strip()
+    if ip:  # a dedicated, scene-specific description written by the scriptwriter
+        return f"{ip[:300]}, {STYLE}"[:480]
     parts = [visual_query.strip()]
     if topic:
         parts.append(f"about {topic.strip()}")

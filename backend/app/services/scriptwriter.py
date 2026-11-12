@@ -44,6 +44,9 @@ Tone: {s.tone}
 Language of voice-over and on-screen text: {learning.language_name(s.language)}
 
 Length: the full voice-over must be between {lo} and {hi} words (aim for about {mid}).
+HOOK RULES: the first sentence must be under 12 words, open a curiosity gap or state a startling specific fact
+(a number, a contradiction, a "what if"), and never start with greetings, "Did you know" or "In this video".
+Keep the pace fast: no scene longer than ~9 seconds of speech; end every beat on a mini-cliffhanger when possible.
 Structure: 1) HOOK in the first 3 seconds - a surprising, specific statement or question that creates curiosity;
 2) 3-6 tight content beats, each with a new fact or reveal; 3) a satisfying payoff or twist; 4) a one-line closing that
 invites viewers to follow/comment (natural, not begging) - and if possible loops back to the hook.
@@ -57,6 +60,7 @@ Return JSON:
  "hook": "the exact first sentence",
  "scenes": [{{"voiceover": "what the narrator says in this scene (1-3 sentences)",
    "visual_query": "2-4 ENGLISH words to search licensed stock footage for this scene (concrete, filmable)",
+   "image_prompt": "ENGLISH, 15-30 words: a vivid, concrete description of ONE cinematic still picture that illustrates this scene (subject, setting, lighting, camera angle); no text, no letters, no real people's names",
    "on_screen_text": "optional emphasis text, max 5 words, same language as voice-over, or empty"}}],
  "closing": "the last spoken line"}}
 The scenes' voice-over together is the complete narration, in order, starting with the hook and ending with the
@@ -84,6 +88,7 @@ def validate(data: Any, s: AppSettings) -> tuple[dict, str]:
             "voiceover": vo,
             "visual_query": re.sub(r"\s+", " ", q)[:60] or "abstract background",
             "on_screen_text": clamp(str(sc.get("on_screen_text", "")), 40),
+            "image_prompt": re.sub(r"[^A-Za-z0-9 ,.\-]", " ", str(sc.get("image_prompt", ""))).strip()[:300],
         })
     if len(scenes) < MIN_SCENES:
         return {}, f"too few scenes ({len(scenes)}); use {MIN_SCENES}-{MAX_SCENES}"

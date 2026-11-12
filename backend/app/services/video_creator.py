@@ -106,7 +106,7 @@ def render_video(db: Session, video: Video) -> None:
                     clip = None
             if not clip and s.visual_source in ("auto", "ai") and ai_ok:
                 prompt = images.build_prompt(sc.get("visual_query") or "", sc.get("voiceover", ""),
-                                             str(script.get("title", "")))
+                                             str(script.get("title", "")), sc.get("image_prompt") or "")
                 pic = images.generate(prompt, work / f"pic{i:02d}.jpg", seed=video.id * 100 + i)
                 if pic:
                     try:
@@ -153,7 +153,21 @@ def render_video(db: Session, video: Video) -> None:
 
         # 6) final mix
         out = work / "final.mp4"
-        ff.final_mix(base, voice["path"], ass, out, total_video)
+        music = None
+        if s.music_enabled:
+            try:
+                music = work / "music.wav"
+                ff.make_music(music, total_video, video.id)
+            except Exception as e:  # music is optional
+                music = None
+                log_event("video", f"background music skipped: {e}", level="WARNING", video_id=video.id)
+        try:
+            ff.final_mix(base, voice["path"], ass, out, total_video, music=music, music_volume=s.music_volume)
+        except ff.FFmpegError as e:
+            if not music:
+                raise
+            log_event("video", f"mix with music failed, rendering voice-only: {e}", level="WARNING", video_id=video.id)
+            ff.final_mix(base, voice["path"], ass, out, total_video)
         info = ff.probe(out)
         if not (info["has_video"] and info["has_audio"]) or info["width"] != ff.W or info["height"] != ff.H:
             raise RuntimeError(f"render verification failed: {info}")

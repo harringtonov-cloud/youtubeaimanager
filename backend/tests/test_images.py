@@ -38,3 +38,18 @@ def test_generate_gives_up_without_raising(monkeypatch, tmp_path):
     monkeypatch.setattr(images.httpx, "get", boom)
     monkeypatch.setattr(images, "MIN_GAP_S", 0.0)
     assert images.generate("a cat", tmp_path / "a.jpg", seed=1, attempts=2) is None
+
+
+def test_build_prompt_prefers_image_prompt():
+    from app.services import images
+    p = images.build_prompt("city night", "narration here", "Topic", "a lone astronaut on a red desert, golden light")
+    assert p.startswith("a lone astronaut")
+    assert "narration here" not in p
+    assert images.build_prompt("city night", "x", "T").startswith("city night")
+
+
+def test_seo_comment_sanitized():
+    from app.services import seo
+    from app.settings_store import AppSettings
+    out = seo.sanitize({"title": "T", "comment": "What do you think? https://x.io #tag <b>"}, AppSettings(), "T")
+    assert "http" not in out["comment"] and "#" not in out["comment"] and "<" not in out["comment"]

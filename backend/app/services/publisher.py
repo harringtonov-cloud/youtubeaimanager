@@ -155,6 +155,16 @@ def publish_video(db: Session, video: Video) -> None:
                 log_event("publisher", f"thumbnail not set (video is live): {e}", level="WARNING", video_id=video.id)
             finally:
                 shutil.rmtree(work, ignore_errors=True)
+        # ---- step 3: engagement question as the first comment (non-fatal, tried once)
+        seo = video.seo or {}
+        if s.first_comment_enabled and seo.get("comment") and not seo.get("comment_tried"):
+            video.seo = {**seo, "comment_tried": True}
+            db.commit()
+            try:
+                youtube.post_comment(db, pub.youtube_video_id, seo["comment"])
+                log_event("publisher", "first comment posted", video_id=video.id)
+            except Exception as e:
+                log_event("publisher", f"first comment not posted: {e}", level="WARNING", video_id=video.id)
     except QuotaExceeded as e:
         db.rollback()
         youtube.block_for_quota(db)

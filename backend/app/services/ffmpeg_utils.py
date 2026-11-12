@@ -143,17 +143,44 @@ def _ass_filter_path(p: str | Path) -> str:
     return re.sub(r"([:'\[\],;])", r"\\\1", s)
 
 
+_CHORDS = [(110.0, 164.81, 220.0, 277.18), (87.31, 130.81, 174.61, 220.0),
+           (130.81, 196.0, 261.63, 329.63), (98.0, 146.83, 196.0, 246.94)]
+
+
+def make_music(dst: str | Path, duration: float, variant: int = 0) -> None:
+    """Soft synthetic ambient pad (original, royalty-free by construction)."""
+    freqs = _CHORDS[variant % len(_CHORDS)]
+    d = f"{duration + 1:.2f}"
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
+    for f in freqs:
+        cmd += ["-f", "lavfi", "-i", f"sine=f={f}:d={d}:sample_rate=44100"]
+    fo = max(0.0, duration - 2.0)
+    fc = ("[0][1][2][3]amix=inputs=4:normalize=0,tremolo=f=0.25:d=0.35,lowpass=f=1400,"
+          f"afade=t=in:d=1.5,afade=t=out:st={fo:.2f}:d=2,aformat=channel_layouts=stereo[m]")
+    run([*cmd, "-filter_complex", fc, "-map", "[m]", "-t", d, str(dst)], 120)
+
+
 def final_mix(video: str | Path, audio: str | Path, ass: Optional[str | Path], dst: str | Path,
-              total: float) -> None:
-    """Burn captions, mix the voice-over (loudness-normalised), faststart MP4."""
+              total: float, music: Optional[str | Path] = None, music_volume: float = 0.12) -> None:
+    """Burn captions, mix the voice-over (loudness-normalised) and optional ducked music, faststart MP4."""
     vf = ["format=yuv420p"]
     if ass:
         vf.insert(0, f"ass={_ass_filter_path(ass)}")
-    af = "loudnorm=I=-16:TP=-1.5:LRA=11,apad"
-    run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(video), "-i", str(audio),
-         "-vf", ",".join(vf), "-af", af, "-map", "0:v:0", "-map", "1:a:0", *_VENC,
-         "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2", "-t", f"{total:.3f}",
-         "-movflags", "+faststart", str(dst)], 1200)
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(video), "-i", str(audio)]
+    if music:
+        cmd += ["-i", str(music)]
+        fc = (f"[0:v]{','.join(vf)}[v];"
+              "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11,apad,asplit=2[vo][sc];"
+              f"[2:a]volume={music_volume:.3f}[bg];"
+              "[bg][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[duck];"
+              "[vo][duck]amix=inputs=2:normalize=0:duration=first[a]")
+        cmd += ["-filter_complex", fc, "-map", "[v]", "-map", "[a]"]
+    else:
+        cmd += ["-vf", ",".join(vf), "-af", "loudnorm=I=-16:TP=-1.5:LRA=11,apad",
+                "-map", "0:v:0", "-map", "1:a:0"]
+    cmd += [*_VENC, "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2", "-t", f"{total:.3f}",
+            "-movflags", "+faststart", str(dst)]
+    run(cmd, 1200)
 
 
 def extract_frame(video: str | Path, dst: str | Path, at: float = 1.0) -> None:
