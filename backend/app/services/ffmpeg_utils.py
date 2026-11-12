@@ -98,6 +98,30 @@ def scene_from_image(src: str | Path, dst: str | Path, duration: float, variant:
          "-frames:v", str(frames), "-an", *_VENC, str(dst)], 300)
 
 
+def scene_from_image_shots(src: str | Path, dst: str | Path, duration: float, variant: int = 0,
+                           max_shot: float = 4.5) -> None:
+    """Like scene_from_image, but long scenes are cut into several shots (different zoom/drift) for pace."""
+    n = int(duration // max_shot) if duration > max_shot * 1.25 else 1
+    n = min(max(n, 1), 3)
+    if n == 1:
+        return scene_from_image(src, dst, duration, variant)
+    d = Path(dst)
+    parts, each = [], duration / n
+    try:
+        for k in range(n):
+            p = d.with_name(f"{d.stem}_shot{k}.mp4")
+            scene_from_image(src, p, each, variant + k)
+            parts.append(p)
+        lst = d.with_name(f"{d.stem}_shots.txt")
+        lst.write_text("".join(f"file '{p.name}'\n" for p in parts), "utf-8")
+        run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(lst),
+             "-c", "copy", str(dst)], 120)
+        lst.unlink(missing_ok=True)
+    finally:
+        for p in parts:
+            p.unlink(missing_ok=True)
+
+
 GENERATED_PALETTES = {
     "dark-blue": ("0x0b1f4d", "0x1d6fa5", "0x120a3a"),
     "warm": ("0x3b0d2e", "0xc2410c", "0x7c2d12"),

@@ -110,7 +110,7 @@ def render_video(db: Session, video: Video) -> None:
                 pic = images.generate(prompt, work / f"pic{i:02d}.jpg", seed=video.id * 100 + i)
                 if pic:
                     try:
-                        ff.scene_from_image(pic, dst, length, variant=i)
+                        ff.scene_from_image_shots(pic, dst, length, variant=i)
                         clips_meta.append({"scene": i, "provider": "pollinations",
                                            "license": "AI-generated image (Pollinations, flux)", "prompt": prompt[:300]})
                         ai_used += 1
