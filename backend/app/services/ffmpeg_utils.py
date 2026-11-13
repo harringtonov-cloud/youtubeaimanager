@@ -99,7 +99,7 @@ def scene_from_image(src: str | Path, dst: str | Path, duration: float, variant:
 
 
 def scene_from_image_shots(src: str | Path, dst: str | Path, duration: float, variant: int = 0,
-                           max_shot: float = 4.5) -> None:
+                           max_shot: float = 3.2) -> None:
     """Like scene_from_image, but long scenes are cut into several shots (different zoom/drift) for pace."""
     n = int(duration // max_shot) if duration > max_shot * 1.25 else 1
     n = min(max(n, 1), 3)

@@ -48,8 +48,11 @@ HOOK RULES: the first sentence must be under 12 words, open a curiosity gap or s
 (a number, a contradiction, a "what if"), and never start with greetings, "Did you know" or "In this video".
 Keep the pace fast: no scene longer than ~9 seconds of speech; end every beat on a mini-cliffhanger when possible.
 Structure: 1) HOOK in the first 3 seconds - a surprising, specific statement or question that creates curiosity;
-2) 3-6 tight content beats, each with a new fact or reveal; 3) a satisfying payoff or twist; 4) a one-line closing that
-invites viewers to follow/comment (natural, not begging) - and if possible loops back to the hook.
+2) 3-6 tight content beats, each with a new fact or reveal; 3) a satisfying payoff or twist; 4) a punchy closing line that
+echoes the hook so the video loops seamlessly. NO "subscribe/like/follow" begging.
+PROVEN STYLE (viral Russian-language Shorts): a myth-busting or "how it really works" explainer about everyday things;
+the hook challenges a common belief ("You think X? You are wrong.") or warns ("This job is not for ...");
+documentary male narrator tone, simple words, one new fact every 3-4 seconds, a final line that reframes the hook.
 
 What we learned from past videos (use it, do not mention it):
 {learning.digest(db, 900)}

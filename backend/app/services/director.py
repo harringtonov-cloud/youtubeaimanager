@@ -59,6 +59,8 @@ CURRENT TREND SIGNALS (inspiration only - do not copy titles, connect them to th
 TOPICS ALREADY COVERED OR PLANNED (never repeat or paraphrase these):
 {rec}
 
+Idea style that works for us: myth-busting and "hidden mechanics of everyday things" (why buildings fall, how a
+dangerous job is really done, what happens inside familiar objects); every idea needs a hook that challenges a belief.
 Create {n} new video ideas: {exploit} that build on what worked and {explore} that explore fresh themes within the niche.
 If TOP PERFORMERS are listed above, at least half of the "build on what worked" ideas must be close relatives of them:
 same category and hook style, the same kind of payoff, but a clearly different specific subject (a "part 2", the next
