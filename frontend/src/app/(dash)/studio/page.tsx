@@ -7,11 +7,11 @@ import VideoDetail, { Thumb } from "@/components/VideoDetail";
 import { Badge, Card, Empty, ErrorBox, PageHeader, statusTone } from "@/components/ui";
 
 const TABS = [
-  { key: "", label: "All" },
-  { key: "planned,scripted,seo_ready,rendered", label: "In production" },
-  { key: "ready,publishing", label: "Ready" },
-  { key: "failed", label: "Failed" },
-  { key: "published", label: "Published" },
+  { key: "", label: "Все" },
+  { key: "planned,scripted,seo_ready,rendered", label: "В производстве" },
+  { key: "ready,publishing", label: "Готовы" },
+  { key: "failed", label: "С ошибкой" },
+  { key: "published", label: "Опубликованные" },
 ];
 const STEPS = ["planned", "scripted", "seo_ready", "rendered", "ready", "published"];
 
@@ -33,7 +33,7 @@ export default function StudioPage() {
 
   return (
     <>
-      <PageHeader title="Video Studio" subtitle="Every video moves through script → SEO → render → cover → publish. Click a row for details." />
+      <PageHeader title="Видеостудия" subtitle="Каждое видео проходит путь: сценарий → SEO → рендер → обложка → публикация. Нажмите на строку, чтобы увидеть детали." />
       <div className="mb-3 flex flex-wrap gap-1">
         {TABS.map((t) => (
           <button key={t.label} onClick={() => setTab(t.key)} className={`rounded-lg px-3 py-1.5 text-sm ${tab === t.key ? "bg-brand/25 text-white" : "text-muted hover:bg-white/5 hover:text-ink"}`}>{t.label}</button>
@@ -41,7 +41,7 @@ export default function StudioPage() {
       </div>
       {error && !data && <ErrorBox>{error}</ErrorBox>}
       <Card>
-        {data && data.items.length === 0 && <Empty>No videos here yet. The planner creates them automatically, or use “Make video” in AI Director.</Empty>}
+        {data && data.items.length === 0 && <Empty>Здесь пока нет видео. Планировщик создаёт их автоматически, либо воспользуйтесь кнопкой «Создать видео» в AI-режиссёре.</Empty>}
         <ul className="divide-y divide-line">
           {data?.items.map((v: any) => (
             <li key={v.id}>
@@ -52,8 +52,8 @@ export default function StudioPage() {
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                     <Badge tone={statusTone(v.status)}>{STATUS_LABEL[v.status] ?? v.status}</Badge>
                     {v.processing_stage && <Badge tone="info">⟳ {v.processing_stage}</Badge>}
-                    <span>sched. {dt(v.scheduled_at, { short: true })}</span>
-                    <span>upd. {ago(v.updated_at)}</span>
+                    <span>план: {dt(v.scheduled_at, { short: true })}</span>
+                    <span>обновлено: {ago(v.updated_at)}</span>
                   </div>
                   {v.error && <div className="mt-1 truncate text-xs text-bad">{v.error}</div>}
                 </div>

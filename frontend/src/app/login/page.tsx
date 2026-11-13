@@ -19,7 +19,7 @@ export default function LoginPage() {
         body: JSON.stringify({ token }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || "Sign-in failed");
+      if (!r.ok) throw new Error(d.detail || "Не удалось войти");
       window.location.href = "/";
     } catch (err: any) {
       setError(err.message);
@@ -34,13 +34,13 @@ export default function LoginPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-lg font-bold">▶</div>
           <div>
             <div className="font-semibold">YouTube AI Manager</div>
-            <div className="text-xs text-muted">Owner sign-in</div>
+            <div className="text-xs text-muted">Вход для владельца</div>
           </div>
         </div>
-        <label className="mb-1 block text-xs font-medium text-muted" htmlFor="token">Admin token (ADMIN_TOKEN)</label>
+        <label className="mb-1 block text-xs font-medium text-muted" htmlFor="token">Токен администратора (ADMIN_TOKEN)</label>
         <input id="token" type="password" autoFocus autoComplete="current-password" value={token} onChange={(e) => setToken(e.target.value)} className={inputCls} placeholder="••••••••••••" />
         {error && <div className="mt-3"><ErrorBox>{error}</ErrorBox></div>}
-        <Button type="submit" variant="primary" busy={busy} className="mt-4 w-full">Sign in</Button>
+        <Button type="submit" variant="primary" busy={busy} className="mt-4 w-full">Войти</Button>
       </form>
     </main>
   );

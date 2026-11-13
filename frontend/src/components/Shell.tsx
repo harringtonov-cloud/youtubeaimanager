@@ -7,15 +7,15 @@ import { useApi } from "@/lib/api";
 import { Dot, ToastProvider, cx } from "./ui";
 
 const NAV = [
-  { href: "/", label: "Overview", icon: "◧" },
-  { href: "/director", label: "AI Director", icon: "✦" },
-  { href: "/studio", label: "Video Studio", icon: "▣" },
-  { href: "/calendar", label: "Content Calendar", icon: "▦" },
-  { href: "/published", label: "Published Videos", icon: "▶" },
-  { href: "/analytics", label: "Analytics", icon: "▲" },
-  { href: "/youtube", label: "YouTube Connection", icon: "⛓" },
-  { href: "/settings", label: "AI Settings", icon: "⚙" },
-  { href: "/logs", label: "System Logs", icon: "≣" },
+  { href: "/", label: "Обзор", icon: "◧" },
+  { href: "/director", label: "AI-режиссёр", icon: "✦" },
+  { href: "/studio", label: "Видеостудия", icon: "▣" },
+  { href: "/calendar", label: "Контент-календарь", icon: "▦" },
+  { href: "/published", label: "Опубликованные видео", icon: "▶" },
+  { href: "/analytics", label: "Аналитика", icon: "▲" },
+  { href: "/youtube", label: "Подключение YouTube", icon: "⛓" },
+  { href: "/settings", label: "Настройки ИИ", icon: "⚙" },
+  { href: "/logs", label: "Системные логи", icon: "≣" },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -56,9 +56,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
           {nav}
           <div className="space-y-2 border-t border-line p-4 text-xs text-muted">
-            <div className="flex items-center gap-2"><span className={cx("h-2 w-2 rounded-full", modeTone)} />{data?.ai?.label ?? "Connecting…"}</div>
-            <div className="flex items-center gap-2"><Dot on={Boolean(data?.server?.worker_online)} />Worker {data?.server?.worker_online ? "online" : "offline"}</div>
-            <button onClick={logout} className="mt-1 text-muted underline-offset-2 hover:text-ink hover:underline">Sign out</button>
+            <div className="flex items-center gap-2"><span className={cx("h-2 w-2 rounded-full", modeTone)} />{data?.ai?.label ?? "Подключение…"}</div>
+            <div className="flex items-center gap-2"><Dot on={Boolean(data?.server?.worker_online)} />Воркер {data?.server?.worker_online ? "онлайн" : "офлайн"}</div>
+            <button onClick={logout} className="mt-1 text-muted underline-offset-2 hover:text-ink hover:underline">Выйти</button>
           </div>
         </aside>
 
@@ -72,7 +72,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
         <div className="min-w-0 flex-1">
           <div className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-bg/90 px-4 py-3 backdrop-blur lg:hidden">
-            <button onClick={() => setOpen(true)} className="text-lg" aria-label="Menu">☰</button>
+            <button onClick={() => setOpen(true)} className="text-lg" aria-label="Меню">☰</button>
             <div className="flex items-center gap-2 text-xs text-muted"><span className={cx("h-2 w-2 rounded-full", modeTone)} />{data?.ai?.label ?? "…"}</div>
           </div>
           <main className="mx-auto max-w-7xl p-4 sm:p-6">{children}</main>

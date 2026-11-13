@@ -30,7 +30,7 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   });
   if (res.status === 401 && typeof window !== "undefined") {
     window.location.href = "/login";
-    throw new ApiError(401, "Session expired");
+    throw new ApiError(401, "Сессия истекла");
   }
   let data: any = null;
   const text = await res.text();
@@ -43,15 +43,15 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   }
   if (res.ok && typeof data === "string") {
     // e.g. Render's "service is waking up" HTML page instead of JSON
-    throw new ApiError(502, "Backend is waking up or returned a non-JSON reply. Wait a minute and refresh.");
+    throw new ApiError(502, "Сервер просыпается или вернул ответ не в формате JSON. Подождите минуту и обновите страницу.");
   }
   if (!res.ok && typeof data === "string" && /^\s*<(!doctype|html)/i.test(data)) {
     // an HTML error page from the hosting platform (e.g. Render 502 while the free API is asleep)
-    throw new ApiError(res.status, `Backend is not answering yet (HTTP ${res.status}). The free server may be waking up: wait a minute, the page retries automatically.`);
+    throw new ApiError(res.status, `Сервер пока не отвечает (HTTP ${res.status}). Бесплатный сервер может просыпаться: подождите минуту, страница повторит попытку автоматически.`);
   }
   if (!res.ok) {
     const detail = data && typeof data === "object" && "detail" in data ? data.detail : data;
-    throw new ApiError(res.status, messageFrom(detail, `Request failed (${res.status})`), detail);
+    throw new ApiError(res.status, messageFrom(detail, `Ошибка запроса (${res.status})`), detail);
   }
   return data as T;
 }
@@ -71,7 +71,7 @@ export function useApi<T = any>(path: string | null, opts: { every?: number } = 
       setData(d);
       setError(null);
     } catch (e: any) {
-      if (alive.current) setError(e?.message ?? "Request failed");
+      if (alive.current) setError(e?.message ?? "Ошибка запроса");
     } finally {
       if (alive.current) setLoading(false);
     }

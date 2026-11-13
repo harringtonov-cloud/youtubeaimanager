@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useApi } from "@/lib/api";
-import { dt, num, pct } from "@/lib/format";
+import { dt, num, pct, STATUS_LABEL } from "@/lib/format";
 import VideoDetail, { Thumb } from "@/components/VideoDetail";
 import { Badge, Card, Empty, ErrorBox, PageHeader, Table, statusTone } from "@/components/ui";
 
@@ -12,12 +12,12 @@ export default function PublishedPage() {
 
   return (
     <>
-      <PageHeader title="Published Videos" subtitle="Publication history with the latest stats. Each video is uploaded exactly once." />
+      <PageHeader title="Опубликованные видео" subtitle="История публикаций с актуальной статистикой. Каждое видео загружается ровно один раз." />
       {error && !data && <ErrorBox>{error}</ErrorBox>}
       <Card>
-        {data && data.items.length === 0 && <Empty>Nothing published yet.</Empty>}
+        {data && data.items.length === 0 && <Empty>Пока ничего не опубликовано.</Empty>}
         {data && data.items.length > 0 && (
-          <Table head={["Video", "Status", "Published", "Views", "Likes", "CTR", "Retention", ""]}>
+          <Table head={["Видео", "Статус", "Опубликовано", "Просмотры", "Лайки", "CTR", "Удержание", ""]}>
             {data.items.map((p: any) => {
               const a = p.analytics;
               return (
@@ -28,7 +28,7 @@ export default function PublishedPage() {
                       <span className="max-w-[260px] truncate font-medium hover:underline">{p.title}</span>
                     </button>
                   </td>
-                  <td className="px-3 py-2"><Badge tone={statusTone(p.status)}>{p.status}</Badge>{p.last_error && <div className="mt-1 max-w-[180px] truncate text-xs text-bad" title={p.last_error}>{p.last_error}</div>}</td>
+                  <td className="px-3 py-2"><Badge tone={statusTone(p.status)}>{STATUS_LABEL[p.status] ?? p.status}</Badge>{p.last_error && <div className="mt-1 max-w-[180px] truncate text-xs text-bad" title={p.last_error}>{p.last_error}</div>}</td>
                   <td className="px-3 py-2 text-muted">{dt(p.published_at ?? p.publish_at, { short: true })}</td>
                   <td className="px-3 py-2">{num(a?.views)}</td>
                   <td className="px-3 py-2">{num(a?.likes)}</td>

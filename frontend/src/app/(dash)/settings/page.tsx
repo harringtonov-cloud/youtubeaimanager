@@ -9,6 +9,9 @@ type S = Record<string, any>;
 
 const LANGS = ["en", "ru", "es", "de", "fr", "pt", "it", "tr", "uk", "pl", "uz", "kk", "ar", "hi", "id", "ja", "ko", "zh", "nl"];
 
+const LANG_RU: Record<string, string> = { en: "Английский", ru: "Русский", es: "Испанский", de: "Немецкий", fr: "Французский", pt: "Португальский", it: "Итальянский", tr: "Турецкий", uk: "Украинский", pl: "Польский", uz: "Узбекский", kk: "Казахский", ar: "Арабский", hi: "Хинди", id: "Индонезийский", ja: "Японский", ko: "Корейский", zh: "Китайский", nl: "Нидерландский" };
+const VISUAL_RU: Record<string, string> = { auto: "Авто", ai: "ИИ-картинки", pexels: "Pexels", pixabay: "Pixabay", generated: "Сгенерированные" };
+
 function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
   return (
     <label className="flex cursor-pointer items-start gap-3">
@@ -40,7 +43,7 @@ export default function SettingsPage() {
   }, [data, form]);
 
   if (error && !data) return <ErrorBox>{error}</ErrorBox>;
-  if (!data || !form) return <div className="text-sm text-muted">Loading…</div>;
+  if (!data || !form) return <div className="text-sm text-muted">Загрузка…</div>;
 
   const set = (k: string, v: any) => setForm((f) => ({ ...(f as S), [k]: v }));
   const csv = (s: string) => s.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
@@ -52,12 +55,12 @@ export default function SettingsPage() {
       const r = await api("/api/settings", { method: "PUT", body });
       setForm(r.settings);
       setTimes(r.settings.publish_times.join(", "));
-      toast("ok", "Settings saved");
+      toast("ok", "Настройки сохранены");
       return true;
     } catch (e: any) {
       if (e instanceof ApiError && e.status === 409 && (e.detail as any)?.report) {
         setReport((e.detail as any).report);
-        toast("bad", "Auto-publish was NOT enabled: some checks failed");
+        toast("bad", "Автопубликация НЕ включена: некоторые проверки не пройдены");
       } else {
         setFormError(e.message);
         toast("bad", e.message);
@@ -77,104 +80,104 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="AI Settings" subtitle="Strategy, schedule and publishing rules. Secrets live in environment variables, never here." actions={<Button variant="primary" busy={busy === "save"} onClick={() => run("save", save)}>Save settings</Button>} />
+      <PageHeader title="Настройки ИИ" subtitle="Стратегия, расписание и правила публикации. Секреты хранятся в переменных окружения, но не здесь." actions={<Button variant="primary" busy={busy === "save"} onClick={() => run("save", save)}>Сохранить настройки</Button>} />
       {formError && <div className="mb-4"><ErrorBox>{formError}</ErrorBox></div>}
 
-      <Card title="Autonomous publishing" className="mb-4">
+      <Card title="Автономная публикация" className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="max-w-xl text-sm">
-            <div className="flex items-center gap-2 font-medium">Auto-publish <Badge tone={form.auto_publish_enabled ? "ok" : "warn"}>{form.auto_publish_enabled ? "ON" : "OFF"}</Badge></div>
-            <p className="mt-1 text-muted">When ON, ready videos are uploaded to YouTube at their scheduled time without any action from you. Turning it ON runs a live check of the YouTube connection, AI, worker and storage; it is refused if anything fails. It pauses itself if YouTube access is lost.</p>
+            <div className="flex items-center gap-2 font-medium">Автопубликация <Badge tone={form.auto_publish_enabled ? "ok" : "warn"}>{form.auto_publish_enabled ? "ВКЛ" : "ВЫКЛ"}</Badge></div>
+            <p className="mt-1 text-muted">Когда включено, готовые видео загружаются на YouTube в запланированное время без каких-либо действий с вашей стороны. При включении выполняется живая проверка подключения YouTube, ИИ, воркера и хранилища; если что-то не пройдёт, включение будет отклонено. Если доступ к YouTube будет потерян, автопубликация сама встанет на паузу.</p>
           </div>
           {form.auto_publish_enabled ? (
-            <Button variant="danger" busy={busy === "auto"} onClick={() => toggleAutoPublish(false)}>Turn OFF</Button>
+            <Button variant="danger" busy={busy === "auto"} onClick={() => toggleAutoPublish(false)}>Выключить</Button>
           ) : (
-            <Button variant="primary" busy={busy === "auto"} onClick={() => toggleAutoPublish(true)}>Check & turn ON</Button>
+            <Button variant="primary" busy={busy === "auto"} onClick={() => toggleAutoPublish(true)}>Проверить и включить</Button>
           )}
         </div>
         {report && <div className="mt-4"><Preflight report={report} /></div>}
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Channel strategy">
+        <Card title="Стратегия канала">
           <div className="space-y-3">
-            <Field label="Niche / topics"><textarea className={inputCls} rows={2} value={form.niche} onChange={(e) => set("niche", e.target.value)} /></Field>
-            <Field label="Audience"><input className={inputCls} value={form.audience} onChange={(e) => set("audience", e.target.value)} /></Field>
-            <Field label="Tone of voice"><input className={inputCls} value={form.tone} onChange={(e) => set("tone", e.target.value)} /></Field>
-            <Field label="Forbidden topics" hint="The Director and Scriptwriter are told to avoid these"><textarea className={inputCls} rows={2} value={form.forbidden_topics} onChange={(e) => set("forbidden_topics", e.target.value)} /></Field>
+            <Field label="Ниша / темы"><textarea className={inputCls} rows={2} value={form.niche} onChange={(e) => set("niche", e.target.value)} /></Field>
+            <Field label="Аудитория"><input className={inputCls} value={form.audience} onChange={(e) => set("audience", e.target.value)} /></Field>
+            <Field label="Тон подачи"><input className={inputCls} value={form.tone} onChange={(e) => set("tone", e.target.value)} /></Field>
+            <Field label="Запрещённые темы" hint="Режиссёру и сценаристу велено избегать этих тем"><textarea className={inputCls} rows={2} value={form.forbidden_topics} onChange={(e) => set("forbidden_topics", e.target.value)} /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Language">
+              <Field label="Язык">
                 <select className={inputCls} value={form.language} onChange={(e) => set("language", e.target.value)}>
-                  {LANGS.map((l) => <option key={l} value={l}>{l}</option>)}
+                  {LANGS.map((l) => <option key={l} value={l}>{LANG_RU[l] ?? l} ({l})</option>)}
                 </select>
               </Field>
-              <Field label="Explore ratio (0–1)" hint="Share of new topics vs. proven ones">
+              <Field label="Доля экспериментов (0–1)" hint="Доля новых тем по сравнению с проверенными">
                 <input type="number" min={0} max={1} step={0.05} className={inputCls} value={form.explore_ratio} onChange={(e) => set("explore_ratio", Number(e.target.value))} />
               </Field>
             </div>
-            <Field label="Trend regions" hint="Country codes, comma-separated, e.g. US, GB"><input className={inputCls} value={regions} onChange={(e) => setRegions(e.target.value)} /></Field>
+            <Field label="Регионы трендов" hint="Коды стран через запятую, например: US, GB"><input className={inputCls} value={regions} onChange={(e) => setRegions(e.target.value)} /></Field>
           </div>
         </Card>
 
-        <Card title="Schedule">
+        <Card title="Расписание">
           <div className="space-y-3">
-            <Field label="Publish times (HH:MM, comma-separated)" hint={`One video per time, every day. Videos per day = number of times (${csv(times).length}).`}>
+            <Field label="Время публикации (ЧЧ:ММ, через запятую)" hint={`По одному видео на каждое время, ежедневно. Видео в день = число времён (${csv(times).length}).`}>
               <input className={inputCls} value={times} onChange={(e) => setTimes(e.target.value)} placeholder="09:00, 18:00" />
             </Field>
-            <Field label="Timezone (IANA)" hint="e.g. Asia/Tashkent, Europe/Moscow, America/New_York"><input className={inputCls} value={form.timezone} onChange={(e) => set("timezone", e.target.value)} /></Field>
-            <Field label="Plan ahead (days)"><input type="number" min={1} max={14} className={inputCls} value={form.plan_horizon_days} onChange={(e) => set("plan_horizon_days", Number(e.target.value))} /></Field>
+            <Field label="Часовой пояс (IANA)" hint="например: Asia/Tashkent, Europe/Moscow, America/New_York"><input className={inputCls} value={form.timezone} onChange={(e) => set("timezone", e.target.value)} /></Field>
+            <Field label="Планировать вперёд (дней)"><input type="number" min={1} max={14} className={inputCls} value={form.plan_horizon_days} onChange={(e) => set("plan_horizon_days", Number(e.target.value))} /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Min length (sec)"><input type="number" min={10} max={170} className={inputCls} value={form.min_video_seconds} onChange={(e) => set("min_video_seconds", Number(e.target.value))} /></Field>
-              <Field label="Max length (sec)"><input type="number" min={15} max={175} className={inputCls} value={form.max_video_seconds} onChange={(e) => set("max_video_seconds", Number(e.target.value))} /></Field>
+              <Field label="Мин. длина (сек)"><input type="number" min={10} max={170} className={inputCls} value={form.min_video_seconds} onChange={(e) => set("min_video_seconds", Number(e.target.value))} /></Field>
+              <Field label="Макс. длина (сек)"><input type="number" min={15} max={175} className={inputCls} value={form.max_video_seconds} onChange={(e) => set("max_video_seconds", Number(e.target.value))} /></Field>
             </div>
-            <Field label="Max attempts per stage" hint="Transient errors are retried with backoff, then the video is marked failed">
+            <Field label="Макс. попыток на этап" hint="Временные ошибки повторяются с нарастающей задержкой, затем видео помечается как неудачное">
               <input type="number" min={1} max={8} className={inputCls} value={form.max_attempts} onChange={(e) => set("max_attempts", Number(e.target.value))} />
             </Field>
           </div>
         </Card>
 
-        <Card title="Video production">
+        <Card title="Производство видео">
           <div className="space-y-3">
-            <Field label="Visual source" hint="auto = stock footage if keys exist, otherwise free AI pictures; ai = always AI pictures">
+            <Field label="Источник визуала" hint="Авто = стоковое видео, если есть ключи, иначе бесплатные ИИ-картинки; ИИ-картинки = всегда ИИ-картинки">
               <select className={inputCls} value={form.visual_source} onChange={(e) => set("visual_source", e.target.value)}>
-                {["auto", "ai", "pexels", "pixabay", "generated"].map((v) => <option key={v}>{v}</option>)}
+                {["auto", "ai", "pexels", "pixabay", "generated"].map((v) => <option key={v} value={v}>{VISUAL_RU[v] ?? v}</option>)}
               </select>
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Voice provider" hint="Empty = environment default">
+              <Field label="Провайдер голоса" hint="Пусто = значение по умолчанию из окружения">
                 <select className={inputCls} value={form.tts_provider ?? ""} onChange={(e) => set("tts_provider", e.target.value || null)}>
-                  <option value="">default</option><option value="edge">edge (free)</option><option value="openai">openai-compatible</option>
+                  <option value="">по умолчанию</option><option value="edge">edge (бесплатно)</option><option value="openai">совместимый с OpenAI</option>
                 </select>
               </Field>
-              <Field label="Voice name" hint="Empty = automatic for the language"><input className={inputCls} value={form.tts_voice} onChange={(e) => set("tts_voice", e.target.value)} /></Field>
+              <Field label="Название голоса" hint="Пусто = автоматически для выбранного языка"><input className={inputCls} value={form.tts_voice} onChange={(e) => set("tts_voice", e.target.value)} /></Field>
             </div>
           </div>
         </Card>
 
-        <Card title="Publishing rules">
+        <Card title="Правила публикации">
           <div className="space-y-3">
-            <Field label="Visibility">
+            <Field label="Видимость">
               <select className={inputCls} value={form.privacy_status} onChange={(e) => set("privacy_status", e.target.value)}>
-                <option value="public">public</option><option value="unlisted">unlisted</option><option value="private">private</option>
+                <option value="public">публичное</option><option value="unlisted">по ссылке</option><option value="private">приватное</option>
               </select>
             </Field>
-            <Field label="Default category ID" hint="27 = Education, 28 = Science & Technology"><input className={inputCls} value={form.category_id} onChange={(e) => set("category_id", e.target.value)} /></Field>
-            <Toggle checked={form.music_enabled} onChange={(v) => set("music_enabled", v)} label="Background music" hint="Soft ambient music that gets quieter while the voice speaks" />
-            <Toggle checked={form.first_comment_enabled} onChange={(v) => set("first_comment_enabled", v)} label="Post a first comment" hint="After publishing, adds a question to boost replies (skipped if YouTube refuses)" />
-            <Toggle checked={form.require_manual_approval} onChange={(v) => set("require_manual_approval", v)} label="Require my approval before publishing" hint="Videos wait until you press Approve in Video Studio" />
-            <Toggle checked={form.synthetic_media_disclosure} onChange={(v) => set("synthetic_media_disclosure", v)} label="Disclose AI-generated content" hint="Adds a note to the description and sets YouTube’s altered/synthetic content flag" />
-            <Toggle checked={form.made_for_kids} onChange={(v) => set("made_for_kids", v)} label="Made for kids" hint="Leave off unless your channel targets children (disables comments etc.)" />
+            <Field label="ID категории по умолчанию" hint="27 = Образование, 28 = Наука и технологии"><input className={inputCls} value={form.category_id} onChange={(e) => set("category_id", e.target.value)} /></Field>
+            <Toggle checked={form.music_enabled} onChange={(v) => set("music_enabled", v)} label="Фоновая музыка" hint="Мягкая фоновая музыка, которая становится тише, когда говорит голос" />
+            <Toggle checked={form.first_comment_enabled} onChange={(v) => set("first_comment_enabled", v)} label="Публиковать первый комментарий" hint="После публикации добавляет вопрос, чтобы вызвать ответы (пропускается, если YouTube откажет)" />
+            <Toggle checked={form.require_manual_approval} onChange={(v) => set("require_manual_approval", v)} label="Требовать моего одобрения перед публикацией" hint="Видео ждут, пока вы не нажмёте «Одобрить» в Видеостудии" />
+            <Toggle checked={form.synthetic_media_disclosure} onChange={(v) => set("synthetic_media_disclosure", v)} label="Помечать контент, созданный ИИ" hint="Добавляет пометку в описание и ставит флаг YouTube об изменённом/синтетическом контенте" />
+            <Toggle checked={form.made_for_kids} onChange={(v) => set("made_for_kids", v)} label="Сделано для детей" hint="Оставьте выключенным, если канал не ориентирован на детей (отключает комментарии и т. д.)" />
           </div>
         </Card>
       </div>
 
-      <Card title="Environment secrets (status only)" className="mt-4">
+      <Card title="Секреты окружения (только статус)" className="mt-4">
         <div className="flex flex-wrap gap-2">
           {Object.entries(secrets).map(([k, v]) => (
             <Badge key={k} tone={v ? "ok" : required.includes(k) ? "bad" : "mute"}>{v ? "✓" : "✗"} {k}</Badge>
           ))}
         </div>
-        <p className="mt-3 text-xs text-muted">LLM endpoint: {data.env.llm_base_url} · model {data.env.llm_model} · TTS {data.env.tts_provider} · storage {data.env.storage_backend}. Change these in Render (yam-api → Environment) and in GitHub Secrets.</p>
+        <p className="mt-3 text-xs text-muted">Адрес LLM: {data.env.llm_base_url} · модель {data.env.llm_model} · TTS {data.env.tts_provider} · хранилище {data.env.storage_backend}. Меняйте их в Render (yam-api → Environment) и в GitHub Secrets.</p>
       </Card>
     </>
   );

@@ -11,7 +11,7 @@ export function middleware(req: NextRequest) {
   }
   if (!authed) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ detail: "Not signed in" }, { status: 401 });
+      return NextResponse.json({ detail: "Вы не вошли в систему" }, { status: 401 });
     }
     return NextResponse.redirect(new URL("/login", req.url));
   }

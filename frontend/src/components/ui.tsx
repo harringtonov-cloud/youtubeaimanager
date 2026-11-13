@@ -122,7 +122,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
       <div className={cx("w-full rounded-xl border border-line bg-panel", wide ? "max-w-4xl" : "max-w-xl")} onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between border-b border-line px-4 py-3">
           <h3 className="text-sm font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-muted hover:text-ink" aria-label="Close">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-ink" aria-label="Закрыть">✕</button>
         </header>
         <div className="p-4">{children}</div>
       </div>
@@ -168,7 +168,7 @@ export function useAction() {
         if (okText) toast("ok", okText);
         return r;
       } catch (e: any) {
-        toast("bad", e?.message ?? "Action failed");
+        toast("bad", e?.message ?? "Не удалось выполнить действие");
         return undefined;
       } finally {
         setBusy(null);
@@ -181,7 +181,7 @@ export function useAction() {
 
 /* ---------- tiny SVG bar chart ---------- */
 export function BarChart({ data, height = 140 }: { data: { label: string; value: number }[]; height?: number }) {
-  if (!data.length) return <Empty>No data yet</Empty>;
+  if (!data.length) return <Empty>Данных пока нет</Empty>;
   const max = Math.max(...data.map((d) => d.value), 1);
   const w = 100 / data.length;
   return (

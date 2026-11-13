@@ -20,12 +20,12 @@ export default function CalendarPage() {
   const [open, setOpen] = useState<number | null>(null);
 
   if (error && !data) return <ErrorBox>{error}</ErrorBox>;
-  if (!data) return <div className="text-sm text-muted">Loading…</div>;
+  if (!data) return <div className="text-sm text-muted">Загрузка…</div>;
 
   const tz: string = data.timezone;
   const dayKey = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: tz });
-  const dayLabel = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });
-  const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+  const dayLabel = (iso: string) => new Date(iso).toLocaleDateString("ru-RU", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });
+  const time = (iso: string) => new Date(iso).toLocaleTimeString("ru-RU", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
   const slotLabel = (iso: string) => `${dayLabel(iso)}, ${time(iso)}`;
 
   const entries: Entry[] = [
@@ -41,29 +41,29 @@ export default function CalendarPage() {
   const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: tz });
 
   const reschedule = (id: number, at: string) =>
-    run(`m${id}`, () => api(`/api/videos/${id}/schedule`, { method: "PATCH", body: { scheduled_at: at } }).then(reload), "Rescheduled");
+    run(`m${id}`, () => api(`/api/videos/${id}/schedule`, { method: "PATCH", body: { scheduled_at: at } }).then(reload), "Перенесено");
 
   return (
     <>
       <PageHeader
-        title="Content Calendar"
-        subtitle={`Publishing slots in ${tz}: ${data.publish_times.join(", ")} daily. Change them in AI Settings.`}
+        title="Контент-календарь"
+        subtitle={`Слоты публикации (${tz}): ${data.publish_times.join(", ")} ежедневно. Изменить можно в настройках ИИ.`}
         actions={
           <select value={weeks} onChange={(e) => setWeeks(Number(e.target.value))} className="rounded-lg border border-line bg-panel2 px-3 py-2 text-sm">
-            {[1, 2, 3, 4, 6].map((w) => <option key={w} value={w}>{w} week{w > 1 ? "s" : ""} ahead</option>)}
+            {[1, 2, 3, 4, 6].map((w) => <option key={w} value={w}>{w} {w === 1 ? "неделя" : w < 5 ? "недели" : "недель"} вперёд</option>)}
           </select>
         }
       />
-      {days.size === 0 && <Empty>No slots in this range.</Empty>}
+      {days.size === 0 && <Empty>В этом диапазоне нет слотов.</Empty>}
       <div className="space-y-4">
         {Array.from(days.entries()).map(([k, list]) => (
-          <Card key={k} title={<span className={k === todayKey ? "text-brand" : ""}>{dayLabel(list[0].at)}{k === todayKey ? " · today" : ""}</span>}>
+          <Card key={k} title={<span className={k === todayKey ? "text-brand" : ""}>{dayLabel(list[0].at)}{k === todayKey ? " · сегодня" : ""}</span>}>
             <ul className="space-y-2">
               {list.map((e) =>
                 e.kind === "slot" ? (
                   <li key={e.at} className="flex items-center gap-3 rounded-lg border border-dashed border-line px-3 py-2 text-sm text-muted">
                     <span className="w-12 font-mono">{time(e.at)}</span>
-                    <span>Open slot — the planner will fill it automatically</span>
+                    <span>Свободный слот — планировщик заполнит его автоматически</span>
                   </li>
                 ) : (
                   <li key={e.v.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-panel2 px-3 py-2 text-sm">
@@ -76,9 +76,9 @@ export default function CalendarPage() {
                         value=""
                         onChange={(ev) => ev.target.value && reschedule(e.v.id, ev.target.value)}
                         className="max-w-[170px] rounded-md border border-line bg-panel px-2 py-1 text-xs text-muted"
-                        aria-label="Move to another slot"
+                        aria-label="Перенести в другой слот"
                       >
-                        <option value="">Move to…</option>
+                        <option value="">Перенести на…</option>
                         {data.open_slots.slice(0, 40).map((s: string) => <option key={s} value={s}>{slotLabel(s)}</option>)}
                       </select>
                     )}

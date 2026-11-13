@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   } catch {
     /* fallthrough */
   }
-  if (!token) return NextResponse.json({ detail: "Enter the admin token" }, { status: 400 });
+  if (!token) return NextResponse.json({ detail: "Введите токен администратора" }, { status: 400 });
 
   let r: Response;
   try {
@@ -19,12 +19,12 @@ export async function POST(req: NextRequest) {
       cache: "no-store",
     });
   } catch {
-    return NextResponse.json({ detail: "Backend is unreachable. Check BACKEND_URL and that the API is running." }, { status: 502 });
+    return NextResponse.json({ detail: "Сервер недоступен. Проверьте BACKEND_URL и что API запущен." }, { status: 502 });
   }
   if (r.status === 503) {
-    return NextResponse.json({ detail: "ADMIN_TOKEN is not configured on the backend." }, { status: 503 });
+    return NextResponse.json({ detail: "ADMIN_TOKEN не настроен на сервере." }, { status: 503 });
   }
-  if (!r.ok) return NextResponse.json({ detail: "Invalid token" }, { status: 401 });
+  if (!r.ok) return NextResponse.json({ detail: "Неверный токен" }, { status: 401 });
 
   // "Secure" cookies are dropped by browsers on plain http (e.g. self-hosted at http://<ip>:3000),
   // so only set the flag when the request actually came in over https.

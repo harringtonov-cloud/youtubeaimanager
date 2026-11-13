@@ -19,15 +19,15 @@ export default function AnalyticsPage() {
   return (
     <>
       <PageHeader
-        title="Analytics"
-        subtitle="YouTube Data + Analytics API. The AI Director uses these results to plan the next videos."
+        title="Аналитика"
+        subtitle="YouTube Data + Analytics API. AI-режиссёр использует эти результаты для планирования следующих видео."
         actions={
           <>
             <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded-lg border border-line bg-panel2 px-3 py-2 text-sm">
-              {[7, 14, 30, 90, 365].map((d) => <option key={d} value={d}>Last {d} days</option>)}
+              {[7, 14, 30, 90, 365].map((d) => <option key={d} value={d}>Последние {d} дн.</option>)}
             </select>
-            <Button busy={busy === "sync"} onClick={() => run("sync", () => api("/api/analytics/sync", { method: "POST" }), "Sync queued — refresh in a minute")}>Sync now</Button>
-            <Button variant="primary" busy={busy === "learn"} onClick={() => run("learn", () => api("/api/analytics/learn", { method: "POST" }), "AI review queued")}>Run AI review</Button>
+            <Button busy={busy === "sync"} onClick={() => run("sync", () => api("/api/analytics/sync", { method: "POST" }), "Синхронизация поставлена в очередь — обновите страницу через минуту")}>Синхронизировать</Button>
+            <Button variant="primary" busy={busy === "learn"} onClick={() => run("learn", () => api("/api/analytics/learn", { method: "POST" }), "ИИ-обзор поставлен в очередь")}>Запустить ИИ-обзор</Button>
           </>
         }
       />
@@ -36,37 +36,37 @@ export default function AnalyticsPage() {
       {sum.data && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Stat label="Views" value={num(t.views)} hint={`${sum.data.videos_with_data} videos with data`} />
-            <Stat label="Avg views / video" value={num(sum.data.avg_views)} />
-            <Stat label="Impressions" value={t.impressions ? num(t.impressions) : "—"} hint={ctr != null ? `${ctr.toFixed(1)}% views/impr.` : "needs analytics scope"} />
-            <Stat label="Engagement" value={engagement != null ? pct(engagement, 2) : "—"} hint={`${num(t.likes)} likes · ${num(t.comments)} comments`} />
-            <Stat label="Subscribers gained" value={num(t.subs)} hint={`${t.minutes} watch min`} />
+            <Stat label="Просмотры" value={num(t.views)} hint={`видео с данными: ${sum.data.videos_with_data}`} />
+            <Stat label="Ср. просмотров на видео" value={num(sum.data.avg_views)} />
+            <Stat label="Показы" value={t.impressions ? num(t.impressions) : "—"} hint={ctr != null ? `${ctr.toFixed(1)}% просмотров/показов` : "нужен доступ к аналитике"} />
+            <Stat label="Вовлечённость" value={engagement != null ? pct(engagement, 2) : "—"} hint={`лайков: ${num(t.likes)} · комментариев: ${num(t.comments)}`} />
+            <Stat label="Новые подписчики" value={num(t.subs)} hint={`минут просмотра: ${t.minutes}`} />
           </div>
 
-          <Card title="Views by publish day" className="mt-4">
+          <Card title="Просмотры по дням публикации" className="mt-4">
             {ts.data ? <BarChart data={ts.data.items.map((d: any) => ({ label: d.day, value: d.views }))} /> : null}
           </Card>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <Card title="Top videos">
-              {sum.data.top.length === 0 ? <Empty>No statistics collected yet. Stats appear after the first video is published.</Empty> : (
+            <Card title="Лучшие видео">
+              {sum.data.top.length === 0 ? <Empty>Статистика пока не собрана. Она появится после публикации первого видео.</Empty> : (
                 <ul className="space-y-2">
                   {sum.data.top.map((r: any) => (
                     <li key={r.publication_id} className="flex items-center justify-between gap-3 text-sm">
                       <span className="min-w-0 truncate">{r.title}</span>
-                      <span className="shrink-0 text-muted">{num(r.views)} views · {pct(r.engagement * 100, 1)} eng.</span>
+                      <span className="shrink-0 text-muted">{num(r.views)} просм. · вовл. {pct(r.engagement * 100, 1)}</span>
                     </li>
                   ))}
                 </ul>
               )}
             </Card>
-            <Card title="Weakest videos">
-              {sum.data.worst.length === 0 ? <Empty>Shown once there are more than 5 videos.</Empty> : (
+            <Card title="Самые слабые видео">
+              {sum.data.worst.length === 0 ? <Empty>Появится, когда видео станет больше 5.</Empty> : (
                 <ul className="space-y-2">
                   {sum.data.worst.map((r: any) => (
                     <li key={r.publication_id} className="flex items-center justify-between gap-3 text-sm">
                       <span className="min-w-0 truncate">{r.title}</span>
-                      <span className="shrink-0 text-muted">{num(r.views)} views</span>
+                      <span className="shrink-0 text-muted">{num(r.views)} просм.</span>
                     </li>
                   ))}
                 </ul>
@@ -74,9 +74,9 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
-          <Card title="All videos compared" className="mt-4">
-            {sum.data.videos.length === 0 ? <Empty>No data yet.</Empty> : (
-              <Table head={["Video", "Category", "Published", "Views", "Impr.", "CTR", "Avg view %", "Likes", "Subs"]}>
+          <Card title="Сравнение всех видео" className="mt-4">
+            {sum.data.videos.length === 0 ? <Empty>Данных пока нет.</Empty> : (
+              <Table head={["Видео", "Категория", "Опубликовано", "Просмотры", "Показы", "CTR", "Ср. % просмотра", "Лайки", "Подписки"]}>
                 {sum.data.videos.map((r: any) => (
                   <tr key={r.publication_id}>
                     <td className="max-w-[240px] truncate px-3 py-2">{r.url ? <a className="hover:underline" href={r.url} target="_blank" rel="noreferrer">{r.title}</a> : r.title}</td>
@@ -96,7 +96,7 @@ export default function AnalyticsPage() {
         </>
       )}
 
-      <Card title="AI conclusions (fed back into planning)" className="mt-4">
+      <Card title="Выводы ИИ (учитываются при планировании)" className="mt-4">
         {ins.data?.items?.length ? (
           <ul className="space-y-4">
             {ins.data.items.map((i: any) => (
@@ -107,7 +107,7 @@ export default function AnalyticsPage() {
             ))}
           </ul>
         ) : (
-          <Empty>No AI review yet. It runs nightly once published videos have statistics.</Empty>
+          <Empty>ИИ-обзора пока нет. Он запускается каждую ночь, когда у опубликованных видео появляется статистика.</Empty>
         )}
       </Card>
     </>
