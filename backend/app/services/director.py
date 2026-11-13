@@ -48,6 +48,8 @@ def _user_prompt(s: AppSettings, signals: list[dict], digest: str, recent: list[
 Audience: {s.audience}
 Tone: {s.tone}
 Language of the channel: {learning.language_name(s.language)}
+IMPORTANT: write EVERY idea (topic, angle, hook, keywords) in {learning.language_name(s.language)}, never in English,
+even if the trend signals or examples below are English - translate and adapt them.
 Video length: {s.min_video_seconds}-{s.max_video_seconds} seconds, vertical Shorts.
 
 WHAT WE LEARNED FROM PAST VIDEOS:
@@ -61,8 +63,8 @@ TOPICS ALREADY COVERED OR PLANNED (never repeat or paraphrase these):
 
 Top-performing format on similar channels (1-4M views per Short): a ~36-second absurd, heartwarming "official
 bureaucracy meets everyday life" story. Titles are short, past tense, and combine an ordinary person/animal/object with an
-official or unexpected outcome (e.g. "A cat was officially enrolled in the rescue service", "The janitor flooded a perfect
-rink with a garden hose", "A snowman was registered by traffic police"). Stories are clearly fictional comedy: invented
+official or unexpected outcome (e.g. "Кота официально зачислили в МЧС", "Дворник залил идеальный каток из шланга",
+"Снеговика оформили в ДПС"). Stories are clearly fictional comedy: invented
 characters, no real people, brands or claims of real news.
 Another idea style that works for us: myth-busting and "hidden mechanics of everyday things" (why buildings fall, how a
 dangerous job is really done, what happens inside familiar objects); every idea needs a hook that challenges a belief.
