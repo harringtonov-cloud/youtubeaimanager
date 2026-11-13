@@ -6,6 +6,8 @@ Planning:       every free publishing slot in the horizon gets the best unused i
 """
 from __future__ import annotations
 
+import re
+
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
@@ -94,6 +96,7 @@ def generate_ideas(db: Session, n: int = IDEAS_PER_RUN) -> int:
     if not llm.is_configured():
         log_event("director", "idea generation skipped: LLM_API_KEY is not configured", level="WARNING")
         return 0
+    reject_wrong_language(db)
     s = get_settings(db)
     signals = trends.collect_signals(db, s.trend_regions)
     digest = learning.digest(db)
@@ -147,8 +150,23 @@ def generate_ideas(db: Session, n: int = IDEAS_PER_RUN) -> int:
 
 
 # --------------------------------------------------------------------------- planning
+def reject_wrong_language(db: Session) -> int:
+    """With a Russian channel, unused ideas written without a single Cyrillic letter are rejected."""
+    if get_settings(db).language.lower() != "ru":
+        return 0
+    rows = db.execute(select(Idea).where(Idea.status == "new")).scalars().all()
+    bad = [i for i in rows if not re.search(r"[а-яА-ЯёЁ]", i.topic or "")]
+    for i in bad:
+        i.status = "rejected"
+    if bad:
+        db.commit()
+        log_event("director", f"rejected {len(bad)} ideas that are not in Russian")
+    return len(bad)
+
+
 def _free_idea(db: Session) -> Optional[Idea]:
     """Owner-approved ideas first, then the highest score."""
+    reject_wrong_language(db)
     approved = db.execute(
         select(Idea).where(Idea.status == "approved").order_by(Idea.score.desc(), Idea.created_at).limit(1)
     ).scalar_one_or_none()
