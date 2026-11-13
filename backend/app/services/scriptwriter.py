@@ -14,7 +14,7 @@ from ..stages import PermanentError
 from . import learning, llm
 from .text_utils import clamp, content_hash, jaccard, tokens
 
-MIN_SCENES, MAX_SCENES = 4, 10
+MIN_SCENES, MAX_SCENES = 4, 14
 
 
 def _targets(s: AppSettings) -> tuple[int, int, int]:
@@ -67,7 +67,10 @@ Return JSON:
    "on_screen_text": "optional emphasis text, max 5 words, same language as voice-over, or empty"}}],
  "closing": "the last spoken line"}}
 The scenes' voice-over together is the complete narration, in order, starting with the hook and ending with the
-closing line. Use {MIN_SCENES}-{MAX_SCENES} scenes."""
+closing line. Use {MIN_SCENES}-{MAX_SCENES} scenes. PACE: one scene per sentence or half-sentence (about 2-3 seconds of speech each),
+so a 35-second video has 10-14 scenes; each scene gets its own different picture.
+Story format also works great: a short absurd/heartwarming "unbelievable but true-sounding" story with fast escalation
+and a punchline ending."""
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
