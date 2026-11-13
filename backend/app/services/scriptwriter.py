@@ -69,6 +69,9 @@ Return JSON:
 The scenes' voice-over together is the complete narration, in order, starting with the hook and ending with the
 closing line. Use {MIN_SCENES}-{MAX_SCENES} scenes. PACE: one scene per sentence or half-sentence (about 2-3 seconds of speech each),
 so a 35-second video has 10-14 scenes; each scene gets its own different picture.
+Story format works best (about 36 seconds, 90-110 words in Russian): hook = the absurd premise in one sentence;
+then escalation in 4-5 steps (a neighbour films it, officials get involved, an expert is amazed, an official recognition);
+finish with a funny reversal or a question to the viewer. It is clearly fictional comedy: invented characters only.
 Story format also works great: a short absurd/heartwarming "unbelievable but true-sounding" story with fast escalation
 and a punchline ending."""
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]

@@ -59,7 +59,12 @@ CURRENT TREND SIGNALS (inspiration only - do not copy titles, connect them to th
 TOPICS ALREADY COVERED OR PLANNED (never repeat or paraphrase these):
 {rec}
 
-Idea style that works for us: myth-busting and "hidden mechanics of everyday things" (why buildings fall, how a
+Top-performing format on similar channels (1-4M views per Short): a ~36-second absurd, heartwarming "official
+bureaucracy meets everyday life" story. Titles are short, past tense, and combine an ordinary person/animal/object with an
+official or unexpected outcome (e.g. "A cat was officially enrolled in the rescue service", "The janitor flooded a perfect
+rink with a garden hose", "A snowman was registered by traffic police"). Stories are clearly fictional comedy: invented
+characters, no real people, brands or claims of real news.
+Another idea style that works for us: myth-busting and "hidden mechanics of everyday things" (why buildings fall, how a
 dangerous job is really done, what happens inside familiar objects); every idea needs a hook that challenges a belief.
 Create {n} new video ideas: {exploit} that build on what worked and {explore} that explore fresh themes within the niche.
 If TOP PERFORMERS are listed above, at least half of the "build on what worked" ideas must be close relatives of them:
