@@ -97,3 +97,15 @@ def test_digest_lists_top_performers_with_likes(db):
     assert [t["title"] for t in top] == ["Title 1", "Title 0"]
     d = learning.digest(db)
     assert "TOP PERFORMERS" in d and "900 views, 70 likes" in d
+
+
+def test_reject_wrong_language(db):
+    from app.models import Idea
+    from app.services import director
+    from app.settings_store import update_settings
+    update_settings(db, {"language": "ru"})
+    db.add_all([Idea(topic="English only topic", fingerprint="f1", status="new"),
+                Idea(topic="Кота зачислили в МЧС", fingerprint="f2", status="new")])
+    db.commit()
+    assert director.reject_wrong_language(db) == 1
+    assert db.query(Idea).filter(Idea.status == "new").count() == 1

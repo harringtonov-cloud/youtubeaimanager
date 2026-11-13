@@ -91,7 +91,7 @@ def env(db, monkeypatch):
     db.add(YouTubeAccount(channel_id="UC1", channel_title="Chan", refresh_token_enc=encrypt("rt"),
                           status="connected", uploads_playlist_id="UU1"))
     db.commit()
-    update_settings(db, {"publish_times": ["10:00", "18:00"], "visual_source": "auto", "auto_publish_enabled": True})
+    update_settings(db, {"publish_times": ["10:00", "18:00"], "visual_source": "auto", "language": "en", "auto_publish_enabled": True})
     return {"queued": queued, "uploads": uploads, "thumbs": thumbs}
 
 
