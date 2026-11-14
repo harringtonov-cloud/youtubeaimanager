@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..events import log_event
@@ -25,10 +26,12 @@ TITLE_MAX = 70
 def _prompt(db: Session, video: Video, s: AppSettings) -> list[dict]:
     sc = video.script or {}
     idea = video.idea
+    long = video.format == "long"
+    kind = "long-form video (a full story of several minutes)" if long else "Short"
     cats = ", ".join(f"{k}={v}" for k, v in CATEGORIES.items())
-    system = ("You are a YouTube SEO specialist for Shorts. You write accurate, curiosity-driven metadata that matches "
+    system = (f"You are a YouTube SEO specialist for {'long videos' if long else 'Shorts'}. You write accurate, curiosity-driven metadata that matches "
               "the video's real content (no misleading claims). Reply with JSON only.")
-    user = f"""Create YouTube metadata for this Short.
+    user = f"""Create YouTube metadata for this {kind}.
 
 Language: {learning.language_name(s.language)}
 Niche: {s.niche}
@@ -42,9 +45,9 @@ What worked before (match the style, never copy):
 
 Rules:
 - title: max {TITLE_MAX} characters, front-load the main keyword, create curiosity, no ALL CAPS, no emoji spam (0-1 emoji).
-- description: 2-4 short paragraphs (max 900 characters): first sentence repeats the main keyword and the promise,
+- description: {'3-5 short paragraphs (max 1500 characters): what the story is about without spoiling the twist' if long else '2-4 short paragraphs (max 900 characters)'}; the first sentence repeats the main keyword and the promise,
   then context, then a soft call to subscribe. Do not include hashtags in it.
-- hashtags: 3-5, no spaces, WITHOUT the '#' sign; always include "Shorts" as the last one.
+- hashtags: {'3-4, no spaces, WITHOUT the # sign (do NOT use "Shorts")' if long else '3-5, no spaces, WITHOUT the # sign; always include "Shorts" as the last one'}.
 - tags: 8-14 search phrases people actually type (1-3 words each).
 - keywords: 1 primary keyword + 4 secondary keywords.
 - category_id: pick ONE id from: {cats}
@@ -62,7 +65,7 @@ no "like/subscribe" begging."""
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
-def sanitize(data: dict, s: AppSettings, fallback_title: str) -> dict:
+def sanitize(data: dict, s: AppSettings, fallback_title: str, long: bool = False) -> dict:
     title = re.sub(r"\s+", " ", re.sub(r"[<>]", "", str(data.get("title") or fallback_title))).strip()
     title = clamp(title, TITLE_MAX) or clamp(fallback_title, TITLE_MAX)
 
@@ -75,7 +78,9 @@ def sanitize(data: dict, s: AppSettings, fallback_title: str) -> dict:
             break
         tags.append(t)
         total += len(t) + 1
-    if "shorts" not in {t.lower() for t in tags}:
+    if long:
+        tags = [t for t in tags if t.lower() != "shorts"]
+    elif "shorts" not in {t.lower() for t in tags}:
         tags.append("shorts")
 
     hashtags: list[str] = []
@@ -83,12 +88,12 @@ def sanitize(data: dict, s: AppSettings, fallback_title: str) -> dict:
         tag = to_hashtag(str(h).lstrip("#"))
         if tag and tag.lower() not in {x.lower() for x in hashtags}:
             hashtags.append(tag)
-    hashtags = [h for h in hashtags if h.lower() != "#shorts"][:4] + ["#Shorts"]
+    hashtags = [h for h in hashtags if h.lower() != "#shorts"][:4] + ([] if long else ["#Shorts"])
 
     desc = re.sub(r"[<>]", "", str(data.get("description", ""))).strip()
     desc = re.sub(r"#\w+", "", desc)
     desc = re.sub(r"\n{3,}", "\n\n", desc).strip()
-    description = clamp(desc, 900) + "\n\n" + " ".join(hashtags)
+    description = clamp(desc, 1500 if long else 900) + "\n\n" + " ".join(hashtags)
 
     kw = data.get("keywords") or {}
     keywords = {"primary": clamp(str(kw.get("primary", "")), 60) if isinstance(kw, dict) else "",
@@ -113,6 +118,20 @@ def sanitize(data: dict, s: AppSettings, fallback_title: str) -> dict:
     }
 
 
+def _with_short_link(db: Session, video: Video, description: str) -> str:
+    """A long video points to the Short it expands (cross-promotion), once the Short is on YouTube."""
+    from ..models import Publication
+
+    if not video.parent_video_id:
+        return description
+    pub = db.execute(select(Publication).where(Publication.video_id == video.parent_video_id,
+                                               Publication.youtube_video_id.is_not(None))).scalar_one_or_none()
+    if pub is None:
+        return description
+    head, _, tags = description.rpartition("\n\n")
+    return f"{head}\n\nКороткая версия: https://youtube.com/shorts/{pub.youtube_video_id}\n\n{tags}".strip()
+
+
 def generate_seo(db: Session, video: Video) -> None:
     if not llm.is_configured():
         raise PermanentError("LLM_API_KEY is not configured")
@@ -122,7 +141,10 @@ def generate_seo(db: Session, video: Video) -> None:
     data = llm.chat_json(_prompt(db, video, s), temperature=0.6, max_tokens=1800)
     if not isinstance(data, dict):
         raise llm.TransientLLMError("SEO answer is not a JSON object")
-    seo = sanitize(data, s, video.title or (video.idea.topic if video.idea else "Short"))
+    long = video.format == "long"
+    seo = sanitize(data, s, video.title or (video.idea.topic if video.idea else "Short"), long=long)
+    if long:
+        seo["description"] = _with_short_link(db, video, seo["description"])
     if not seo["thumbnail"]["text"]:
         seo["thumbnail"]["text"] = clamp(seo["title"], 22)
     video.seo = seo

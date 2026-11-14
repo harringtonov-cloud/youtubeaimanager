@@ -17,6 +17,9 @@ from ..storage import get_storage
 from . import ffmpeg_utils as ff
 from . import images, stock, subtitles, tts
 
+LONG_SIZE = (1920, 1080)   # long videos are 16:9
+LONG_SHOT = 4.0            # longest single shot of one picture in a long video
+MAX_LONG_SECONDS = 15 * 60
 FADE = 0.35
 TAIL = 0.45  # seconds of picture after the last word
 
@@ -94,6 +97,8 @@ def render_video(db: Session, video: Video) -> None:
         raise PermanentError("script missing - cannot render")
     s = get_settings(db)
     script = video.script
+    long = video.format == "long"
+    size = LONG_SIZE if long else (ff.W, ff.H)
     scenes: list[dict] = script["scenes"]
     voiceover = script.get("voiceover") or " ".join(sc["voiceover"] for sc in scenes)
     storage = get_storage()
@@ -102,8 +107,10 @@ def render_video(db: Session, video: Video) -> None:
         # 1) voice-over (whole text at once for natural prosody) + word timings
         voice = tts.synthesize(voiceover, s.language, work / "voice.mp3", provider=s.tts_provider, voice=s.tts_voice)
         total = voice["duration"]
-        if total > 178:
+        if not long and total > 178:
             raise PermanentError(f"voice-over is {total:.0f}s long - too long for a Short")
+        if long and total > MAX_LONG_SECONDS:
+            raise PermanentError(f"voice-over is {total:.0f}s long - too long for a long video")
         heartbeat(db, video)
 
         # 2) timeline
@@ -113,12 +120,12 @@ def render_video(db: Session, video: Video) -> None:
 
         # 3) footage per scene (licensed stock, otherwise generated background)
         used: set[str] = set()
-        ai_ok, ai_used, ai_fail = True, 0, 0
+        ai_ok, ai_used, ai_fail, ai_streak = True, 0, 0, 0  # streak: failures in a row
         clips_meta: list[dict] = []
         scene_files: list[Path] = []
         shots: dict[int, tuple[int, float]] = {}  # scene -> (shots, clip length) for hard cuts inside a scene
         for i, (sc, d) in enumerate(zip(scenes, durs)):
-            length = d + (FADE if i < len(scenes) - 1 else 0.0)
+            length = d + (FADE if i < len(scenes) - 1 and not long else 0.0)  # long videos: hard cuts, no overlap
             dst = work / f"scene{i:02d}.mp4"
             clip = None
             if s.visual_source in ("auto", "pexels", "pixabay"):
@@ -127,7 +134,7 @@ def render_video(db: Session, video: Video) -> None:
             if clip:
                 used.add(clip.clip_id)
                 try:
-                    ff.scene_from_clip(clip.path, dst, length)
+                    ff.scene_from_clip(clip.path, dst, length, size)
                     clips_meta.append({"scene": i, **clip.meta()})
                 except ff.FFmpegError as e:  # corrupt download -> generated fallback for this scene
                     log_event("video", f"stock clip {clip.clip_id} unusable, using generated background: {e}",
@@ -136,15 +143,18 @@ def render_video(db: Session, video: Video) -> None:
             if not clip and s.visual_source in ("auto", "ai") and ai_ok:
                 prompt = images.build_prompt(sc.get("visual_query") or "", sc.get("voiceover", ""),
                                              str(script.get("title", "")), sc.get("image_prompt") or "",
-                                             style=images.pick_style(video.id))
-                pic = images.generate(prompt, work / f"pic{i:02d}.jpg", seed=video.id * 100 + i)
+                                             style=images.pick_style(video.id, landscape=long))
+                pic = images.generate(prompt, work / f"pic{i:02d}.jpg", seed=video.id * 100 + i, landscape=long)
                 if pic:
                     try:
-                        ff.scene_from_image_shots(pic, dst, length, variant=i)
-                        shots[i] = (ff.shot_count(length), length)
+                        ff.scene_from_image_shots(pic, dst, length, variant=i, size=size,
+                                                  max_shot=LONG_SHOT if long else 2.8)
+                        if not long:
+                            shots[i] = (ff.shot_count(length), length)
                         clips_meta.append({"scene": i, "provider": "pollinations",
                                            "license": "AI-generated image (Pollinations, flux)", "prompt": prompt[:300]})
                         ai_used += 1
+                        ai_streak = 0
                         clip = True  # type: ignore[assignment]
                     except ff.FFmpegError as e:
                         log_event("video", f"AI picture unusable, using generated background: {e}",
@@ -152,12 +162,13 @@ def render_video(db: Session, video: Video) -> None:
                     pic.unlink(missing_ok=True)
                 else:
                     ai_fail += 1
-                    if ai_fail >= 2 and ai_used == 0:  # service is down: stop waiting for it in this render
+                    ai_streak += 1
+                    if (ai_fail >= 2 and ai_used == 0) or ai_streak >= 3:  # service is down: stop waiting for it
                         ai_ok = False
                         log_event("video", "AI picture service unavailable, using generated backgrounds",
                                   level="WARNING", video_id=video.id)
             if not clip:
-                ff.scene_generated(dst, length, s.background_style, i + video.id)
+                ff.scene_generated(dst, length, s.background_style, i + video.id, size)
                 clips_meta.append({"scene": i, "provider": "generated", "license": "original (procedurally generated)"})
             scene_files.append(dst)
             if clip and clip is not True:
@@ -166,7 +177,10 @@ def render_video(db: Session, video: Video) -> None:
 
         # 4) montage with transitions
         base = work / "base.mp4"
-        ff.concat_with_transitions(scene_files, durs, base, fade=FADE, seed=video.id)
+        if long:
+            ff.concat_hard(scene_files, base)
+        else:
+            ff.concat_with_transitions(scene_files, durs, base, fade=FADE, seed=video.id)
         heartbeat(db, video)
 
         # clean frame (no captions) for the thumbnail
@@ -176,9 +190,10 @@ def render_video(db: Session, video: Video) -> None:
         storage.put_file(frame, fkey, "image/jpeg")
 
         # 5) captions + emphasis -> ASS (burned in) and SRT (kept for the dashboard / YouTube captions)
-        chunks = subtitles.chunk_words(voice["words"])
+        chunks = subtitles.chunk_words(voice["words"], *((7, 42) if long else ()))
         ass = work / "captions.ass"
-        ass.write_text(subtitles.to_ass(chunks, emphasis_events(scenes, durs), style=s.background_style), "utf-8")
+        ass.write_text(subtitles.to_ass(chunks, emphasis_events(scenes, durs), width=size[0], height=size[1],
+                                        style=s.background_style), "utf-8")
         srt = work / "captions.srt"
         srt.write_text(subtitles.to_srt(chunks), "utf-8")
 
@@ -205,7 +220,7 @@ def render_video(db: Session, video: Video) -> None:
                 log_event("video", f"sound effects skipped: {e}", level="WARNING", video_id=video.id)
         try:
             ff.final_mix(base, voice["path"], ass, out, total_video, music=music, music_volume=s.music_volume,
-                         sfx=sfx, sfx_volume=s.sfx_volume)
+                         sfx=sfx, sfx_volume=s.sfx_volume * (0.6 if long else 1.0))
         except ff.FFmpegError as e:
             if not music and not sfx:
                 raise
@@ -213,9 +228,9 @@ def render_video(db: Session, video: Video) -> None:
                       video_id=video.id)
             ff.final_mix(base, voice["path"], ass, out, total_video)
         info = ff.probe(out)
-        if not (info["has_video"] and info["has_audio"]) or info["width"] != ff.W or info["height"] != ff.H:
+        if not (info["has_video"] and info["has_audio"]) or (info["width"], info["height"]) != size:
             raise RuntimeError(f"render verification failed: {info}")
-        if not (5 <= info["duration"] <= 179):
+        if not (5 <= info["duration"] <= (MAX_LONG_SECONDS + 30 if long else 179)):
             raise RuntimeError(f"unexpected duration {info['duration']:.1f}s")
 
         # 7) store artifacts (key only is kept in the DB -> restart safe)

@@ -62,6 +62,8 @@ def top_performers(db: Session, n: int = 3) -> list[dict[str, Any]]:
     for p in pubs:
         if not p.snapshots or not p.published_at or p.published_at > now - timedelta(hours=3):
             continue
+        if p.video and p.video.format == "long":  # long videos have other retention/length: not comparable to Shorts
+            continue
         sn = max(p.snapshots, key=lambda x: x.fetched_at)
         if sn.views <= 0:
             continue

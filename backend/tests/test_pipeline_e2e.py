@@ -39,8 +39,20 @@ def _script(topic):
                        for i, b in enumerate(beats)]}
 
 
+def _long_scene(n, words=30):
+    text = " ".join(f"word{n}x{i}" for i in range(words)) + "."
+    return {"voiceover": text, "visual_query": "city night", "image_prompt": "a cat in a tiny uniform, warm light",
+            "on_screen_text": ""}
+
+
 def fake_chat_json(messages, **kw):
     system, user = messages[0]["content"], messages[-1]["content"]
+    if "storyteller" in system:  # long video: outline first, then one call per chapter
+        if "Plan the long video" in user:
+            return {"title": "The full story of the honey",
+                    "chapters": [{"title": f"Part {i + 1}", "summary": f"Things happen in part {i + 1}."} for i in range(4)]}
+        n = int(user.split("Write chapter ")[1].split(" ")[0])
+        return {"scenes": [_long_scene(n * 10 + k) for k in range(3)]}
     if "creative director" in system:
         return IDEAS
     if "scriptwriter" in system:
@@ -243,3 +255,52 @@ def test_permanent_error_fails_video_and_dashboard_retry_works(db, env, client, 
     monkeypatch.setattr(llm, "chat_json", fake_chat_json)
     assert client.post(f"/api/videos/{vid}/retry").json() == {"ok": True, "stage": "script"}
     assert _run(vid, "script") == "ok" and _fresh(db, vid).status == "scripted"
+
+
+def test_long_video_follows_the_short_end_to_end(db, env):
+    """A published Short -> its long 16:9 version: planned, scripted in chapters, rendered, thumbnailed, published."""
+    from app.services import long_video
+
+    update_settings(db, {"visual_source": "generated", "long_video_minutes": 3})
+    short = Video(title="Honey never spoils", status=PUBLISHED, scheduled_at=utcnow() - timedelta(hours=2),
+                  script={**_script("Honey never spoils"), "voiceover": "Honey never spoils. Tombs prove it."})
+    db.add(short)
+    db.flush()
+    db.add(Publication(video_id=short.id, status="published", youtube_video_id="YTS", title="Honey never spoils",
+                       published_at=utcnow() - timedelta(hours=2)))
+    db.commit()
+
+    ids = long_video.plan_long_videos(db)
+    assert len(ids) == 1
+    vid = ids[0]
+    v = _fresh(db, vid)
+    assert v.format == "long" and v.parent_video_id == short.id and v.idea_id is None
+    assert timedelta(hours=21) < v.scheduled_at - utcnow() < timedelta(hours=23)  # a day after the Short
+    assert long_video.plan_long_videos(db) == []  # one per day, one per Short
+
+    assert _run(vid, "script") == "ok"
+    v = _fresh(db, vid)
+    assert v.script["format"] == "long" and len(v.script["chapters"]) == 4 and len(v.script["scenes"]) == 12
+    assert v.title == "The full story of the honey" and v.content_hash
+
+    assert _run(vid, "seo") == "ok"
+    v = _fresh(db, vid)
+    assert "#Shorts" not in v.seo["description"] and "shorts" not in {t.lower() for t in v.seo["tags"]}
+    assert "youtube.com/shorts/YTS" in v.seo["description"]  # points to the Short
+
+    assert _run(vid, "render") == "ok"
+    v = _fresh(db, vid)
+    info = ffmpeg_utils.probe(get_storage().path_for(v.video_key))
+    assert (info["width"], info["height"]) == (1920, 1080) and info["has_audio"] and info["vcodec"] == "h264"
+    assert 11 <= info["duration"] <= 13
+
+    assert _run(vid, "thumbnail") == "ok"
+    v = _fresh(db, vid)
+    assert v.status == READY and get_storage().exists(v.thumbnail_key)
+
+    v.scheduled_at = utcnow() - timedelta(minutes=1)
+    db.commit()
+    assert publisher.due_videos(db) == [vid]
+    assert _run(vid, "publish") == "ok"
+    pub = db.query(Publication).filter_by(video_id=vid).one()
+    assert pub.url == "https://youtube.com/watch?v=YT1" and pub.status == "published"

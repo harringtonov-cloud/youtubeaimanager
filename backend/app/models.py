@@ -126,6 +126,9 @@ class Video(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     idea_id: Mapped[Optional[int]] = mapped_column(ForeignKey("ideas.id"), unique=True, nullable=True)
     title: Mapped[str] = mapped_column(String(300), default="")
+    # short = vertical YouTube Short made from an idea; long = 16:9 expanded version of a published Short
+    format: Mapped[str] = mapped_column(String(10), default="short", server_default="short", index=True)
+    parent_video_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # the Short a long video expands
     status: Mapped[str] = mapped_column(String(20), default=PLANNED, index=True)
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime, nullable=True, index=True)
 

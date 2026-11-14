@@ -47,11 +47,19 @@ def due_videos(db: Session) -> list[int]:
     rows = [v for v in rows if _eligible(v, s)]
     if not rows:
         return []
-    recent = len(db.execute(select(Publication.id).where(Publication.created_at > now - timedelta(hours=24))).all())
+    recent_rows = db.execute(
+        select(Video.format).join(Publication, Publication.video_id == Video.id)
+        .where(Publication.created_at > now - timedelta(hours=24))
+    ).all()
+    recent = {"short": 0, "long": 0}
+    for (fmt,) in recent_rows:
+        recent[fmt if fmt in recent else "short"] += 1
     out: list[int] = []
     for v in rows:
         manual = v.approved and not (s.auto_publish_enabled and not s.require_manual_approval)
-        if not manual and recent >= s.videos_per_day + MAX_AUTO_PER_24H_EXTRA:
+        # flood guard per format: a long video must not use up the Shorts allowance (and vice versa)
+        limit = 1 + MAX_AUTO_PER_24H_EXTRA if v.format == "long" else s.videos_per_day + MAX_AUTO_PER_24H_EXTRA
+        if not manual and recent[v.format if v.format in recent else "short"] >= limit:
             continue
         out.append(v.id)
         break  # one at a time; the next tick picks up the next one
@@ -135,7 +143,8 @@ def publish_video(db: Session, video: Video) -> None:
                     shutil.rmtree(work, ignore_errors=True)
                 pub.youtube_video_id = vid
             # persist the id immediately - this is the duplicate-protection checkpoint
-            pub.url = f"https://youtube.com/shorts/{pub.youtube_video_id}"
+            pub.url = (f"https://youtube.com/watch?v={pub.youtube_video_id}" if video.format == "long"
+                       else f"https://youtube.com/shorts/{pub.youtube_video_id}")
             pub.status = "published"
             pub.published_at = pub.published_at or utcnow()
             pub.last_error = None

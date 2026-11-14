@@ -48,7 +48,7 @@ export default function StudioPage() {
               <button onClick={() => setOpen(v.id)} className="flex w-full items-center gap-4 py-3 text-left hover:bg-white/[0.02]">
                 <Thumb id={v.id} has={v.has_thumbnail} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{v.title}</div>
+                  <div className="truncate font-medium">{v.format === "long" && <span className="mr-1.5 rounded bg-[#6d5efc]/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[#a79bff]">длинное</span>}{v.title}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                     <Badge tone={statusTone(v.status)}>{STATUS_LABEL[v.status] ?? v.status}</Badge>
                     {v.processing_stage && <Badge tone="info">⟳ {v.processing_stage}</Badge>}

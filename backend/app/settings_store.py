@@ -45,6 +45,10 @@ class AppSettings(BaseModel):
     auto_reply_enabled: bool = True          # AI replies to viewers' comments under our videos
     auto_reply_per_day: int = Field(15, ge=1, le=60)
 
+    # --- long videos: the day after a Short is published, its story is expanded into a 16:9 video ---
+    long_videos_enabled: bool = True
+    long_video_minutes: int = Field(5, ge=3, le=10)
+
     # --- publishing ---
     auto_publish_enabled: bool = False
     require_manual_approval: bool = False

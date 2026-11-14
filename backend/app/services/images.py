@@ -35,8 +35,9 @@ VISUAL_STYLES = [
 _last_call = 0.0
 
 
-def pick_style(seed: int) -> str:
-    return VISUAL_STYLES[abs(int(seed)) % len(VISUAL_STYLES)]
+def pick_style(seed: int, landscape: bool = False) -> str:
+    style = VISUAL_STYLES[abs(int(seed)) % len(VISUAL_STYLES)]
+    return style.replace("vertical composition", "wide horizontal composition") if landscape else style
 
 
 def build_prompt(visual_query: str, narration: str = "", topic: str = "", image_prompt: str = "",
@@ -60,11 +61,12 @@ def _looks_like_image(data: bytes) -> bool:
                                  or data[:4] == b"RIFF")
 
 
-def generate(prompt: str, dest: Path, seed: int, *, attempts: int = 3, timeout: float = 100.0) -> Optional[Path]:
+def generate(prompt: str, dest: Path, seed: int, *, attempts: int = 3, timeout: float = 100.0,
+             landscape: bool = False) -> Optional[Path]:
     """Download one picture to `dest` (jpg). Returns None when the service is unavailable."""
     global _last_call
     url = f"{BASE}{quote(prompt, safe='')}"
-    params = {"width": 768, "height": 1344, "seed": seed % 1_000_000, "model": "flux", "nologo": "true"}
+    params = {"width": 1344 if landscape else 768, "height": 768 if landscape else 1344, "seed": seed % 1_000_000, "model": "flux", "nologo": "true"}
     for i in range(attempts):
         wait = MIN_GAP_S - (time.monotonic() - _last_call)
         if wait > 0:

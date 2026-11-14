@@ -76,40 +76,44 @@ def speech_window(path: str | Path, total: float) -> tuple[float, float]:
     return max(0.0, start), min(total, end)
 
 
-def scene_from_clip(src: str | Path, dst: str | Path, duration: float) -> None:
-    """Stock clip -> exactly `duration` seconds of 1080x1920, cropped to fill, slightly graded and darkened."""
-    vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS},"
+def scene_from_clip(src: str | Path, dst: str | Path, duration: float, size: tuple[int, int] = (W, H)) -> None:
+    """Stock clip -> exactly `duration` seconds of 1080x1920 (or `size`), cropped to fill, slightly graded."""
+    w, h = size
+    vf = (f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={FPS},"
           "eq=brightness=-0.05:contrast=1.05:saturation=1.08,format=yuv420p")
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-stream_loop", "-1", "-i", str(src),
          "-t", f"{duration:.3f}", "-an", "-vf", vf, *_VENC, str(dst)], 300)
 
 
-def scene_from_image(src: str | Path, dst: str | Path, duration: float, variant: int = 0) -> None:
-    """Still picture -> `duration` seconds of 1080x1920 with a slow Ken Burns move (zoom in / out, alternating)."""
+def scene_from_image(src: str | Path, dst: str | Path, duration: float, variant: int = 0,
+                     size: tuple[int, int] = (W, H)) -> None:
+    """Still picture -> `duration` seconds of 1080x1920 (or `size`) with a slow Ken Burns move (zoom in / out)."""
+    w, h = size
     frames = max(2, int(round(duration * FPS)))
     zmax = 0.16
     z = (f"1+{zmax}*on/{frames}" if variant % 2 == 0 else f"1+{zmax}-{zmax}*on/{frames}")
     # alternate the drift direction too, so consecutive scenes do not look identical
     x = ("iw/2-(iw/zoom/2)+(iw*0.03)*(on/%d-0.5)" % frames) if variant % 3 == 0 else "iw/2-(iw/zoom/2)"
-    vf = (f"crop=iw:ih*0.95:0:0,scale=1620:2880:force_original_aspect_ratio=increase,crop=1620:2880,"
-          f"zoompan=z='{z}':x='{x}':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={FPS},"
+    big_w, big_h = int(w * 1.5), int(h * 1.5)
+    vf = (f"crop=iw:ih*0.95:0:0,scale={big_w}:{big_h}:force_original_aspect_ratio=increase,crop={big_w}:{big_h},"
+          f"zoompan=z='{z}':x='{x}':y='ih/2-(ih/zoom/2)':d={frames}:s={w}x{h}:fps={FPS},"
           "setsar=1,eq=brightness=-0.03:contrast=1.06:saturation=1.1,format=yuv420p")
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(src), "-vf", vf,
          "-frames:v", str(frames), "-an", *_VENC, str(dst)], 300)
 
 
 def scene_from_image_shots(src: str | Path, dst: str | Path, duration: float, variant: int = 0,
-                           max_shot: float = 2.8) -> None:
+                           max_shot: float = 2.8, size: tuple[int, int] = (W, H), max_shots: int = 3) -> None:
     """Like scene_from_image, but long scenes are cut into several shots (different zoom/drift) for pace."""
-    n = shot_count(duration, max_shot)
+    n = shot_count(duration, max_shot, max_shots)
     if n == 1:
-        return scene_from_image(src, dst, duration, variant)
+        return scene_from_image(src, dst, duration, variant, size)
     d = Path(dst)
     parts, each = [], duration / n
     try:
         for k in range(n):
             p = d.with_name(f"{d.stem}_shot{k}.mp4")
-            scene_from_image(src, p, each, variant + k)
+            scene_from_image(src, p, each, variant + k, size)
             parts.append(p)
         lst = d.with_name(f"{d.stem}_shots.txt")
         lst.write_text("".join(f"file '{p.name}'\n" for p in parts), "utf-8")
@@ -128,11 +132,13 @@ GENERATED_PALETTES = {
 }
 
 
-def scene_generated(dst: str | Path, duration: float, style: str, variant: int = 0) -> None:
+def scene_generated(dst: str | Path, duration: float, style: str, variant: int = 0,
+                    size: tuple[int, int] = (W, H)) -> None:
     """Licence-free animated gradient background (fallback when no stock footage is available)."""
     c = GENERATED_PALETTES.get(style, GENERATED_PALETTES["dark-blue"])
     c0, c1 = (c[variant % 3], c[(variant + 1) % 3])
-    src = f"gradients=s={W}x{H}:c0={c0}:c1={c1}:x0=0:y0=0:x1={W}:y1={H}:speed=0.04:duration={duration:.3f}:rate={FPS}"
+    w, h = size
+    src = f"gradients=s={w}x{h}:c0={c0}:c1={c1}:x0=0:y0=0:x1={w}:y1={h}:speed=0.04:duration={duration:.3f}:rate={FPS}"
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", src,
          "-vf", "format=yuv420p", *_VENC, str(dst)], 300)
 
@@ -158,6 +164,22 @@ def concat_with_transitions(scenes: list[str | Path], durations: list[float], ds
         last = out
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *inputs, "-filter_complex", ";".join(parts),
          "-map", "[v]", "-an", *_VENC, str(dst)], 900)
+
+
+def concat_hard(scenes: list[str | Path], dst: str | Path) -> None:
+    """Join scene clips that were encoded with identical settings by plain concatenation (no re-encode).
+
+    Used for long videos: dozens of xfade transitions would make the render far too slow."""
+    if not scenes:
+        raise FFmpegError("no scenes to join")
+    d = Path(dst)
+    lst = d.with_name(f"{d.stem}_concat.txt")
+    lst.write_text("".join("file '" + str(Path(p).resolve()).replace("'", "'\\''") + "'\n" for p in scenes), "utf-8")
+    try:
+        run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(lst),
+             "-c", "copy", "-an", str(dst)], 600)
+    finally:
+        lst.unlink(missing_ok=True)
 
 
 def _ass_filter_path(p: str | Path) -> str:
@@ -218,10 +240,10 @@ def make_sfx_track(dst: str | Path, whoosh: str | Path, times: list[float], tota
     return n
 
 
-def shot_count(duration: float, max_shot: float = 2.8) -> int:
+def shot_count(duration: float, max_shot: float = 2.8, max_shots: int = 3) -> int:
     """How many shots scene_from_image_shots cuts a scene of this length into (kept in one place)."""
     n = int(duration // max_shot) if duration > max_shot * 1.25 else 1
-    return min(max(n, 1), 3)
+    return min(max(n, 1), max_shots)
 
 
 def final_mix(video: str | Path, audio: str | Path, ass: Optional[str | Path], dst: str | Path,

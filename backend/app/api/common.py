@@ -53,6 +53,7 @@ def video_dict(v: Video, full: bool = False) -> dict[str, Any]:
         "id": v.id,
         "title": v.title or (v.idea.topic if v.idea else f"Video #{v.id}"),
         "topic": v.idea.topic if v.idea else None,
+        "format": v.format or "short",
         "status": v.status,
         "processing_stage": v.processing_stage,
         "scheduled_at": iso(v.scheduled_at),

@@ -115,6 +115,17 @@ def next_job(skip: set[int]) -> Optional[tuple[int, str]]:
     return None
 
 
+LONG_RENDER_NEEDS_S = 25 * 60  # a long video renders for 15-25 minutes: never start it near the end of the budget
+
+
+def _needs_budget(video_id: int, stage: str) -> float:
+    if stage != "render":
+        return 0.0
+    with SessionLocal() as db:
+        v = db.get(Video, video_id)
+        return LONG_RENDER_NEEDS_S if v is not None and v.format == "long" else 0.0
+
+
 def process_videos(deadline: float) -> dict[str, int]:
     counts: Counter[str] = Counter()
     skip: set[int] = set()  # videos that failed/deferred this cycle: the next cycle is their retry
@@ -123,6 +134,10 @@ def process_videos(deadline: float) -> dict[str, int]:
         if job is None:
             break
         video_id, stage = job
+        if deadline - time.monotonic() < _needs_budget(video_id, stage):
+            skip.add(video_id)  # too little time left: the next cycle (fresh budget) renders it
+            counts["waits_for_budget"] += 1
+            continue
         outcome = execute_stage(video_id, stage)
         counts[outcome] += 1
         if outcome != "ok":

@@ -5,7 +5,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 from sqlalchemy.orm import Session
 
 from ..events import log_event
@@ -61,28 +61,37 @@ def _wrap(draw: ImageDraw.ImageDraw, text: str, max_w: int, max_h: int) -> tuple
 def compose(frame_path: str | Path, text: str, subtext: str, mood: str, out_path: str | Path) -> None:
     accent, fg, tint = MOODS.get(mood, MOODS["curious"])
     src = Image.open(frame_path).convert("RGB")
-    # blurred, darkened full-bleed background from the same frame
-    bg = src.resize((TW, int(TW * src.height / src.width)), Image.LANCZOS)
-    top = max(0, (bg.height - TH) // 2)
-    bg = bg.crop((0, top, TW, top + TH)).filter(ImageFilter.GaussianBlur(28))
-    bg = ImageEnhance.Brightness(bg).enhance(0.55)
-    overlay = Image.new("RGB", (TW, TH), tint)
-    bg = Image.blend(bg, overlay, 0.25)
-    # sharp portrait frame on the right
-    ph = TH - 60
-    pw = int(ph * src.width / src.height)
-    portrait = src.resize((pw, ph), Image.LANCZOS)
-    px, py = TW - pw - 70, 30
-    mask = Image.new("L", (pw, ph), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, pw, ph), radius=28, fill=255)
-    glow = Image.new("RGB", (pw + 24, ph + 24), accent)
-    gm = Image.new("L", glow.size, 0)
-    ImageDraw.Draw(gm).rounded_rectangle((0, 0, glow.width, glow.height), radius=36, fill=255)
-    bg.paste(glow, (px - 12, py - 12), gm)
-    bg.paste(portrait, (px, py), mask)
+    wide = src.width > src.height  # a long (16:9) video: the frame itself is the background
+    if wide:
+        bg = ImageOps.fit(src, (TW, TH), Image.LANCZOS)
+        bg = ImageEnhance.Brightness(ImageEnhance.Color(bg).enhance(1.15)).enhance(0.85)
+        shade = Image.linear_gradient("L").rotate(270).resize((TW, TH))  # strong on the left (under the text), fading out to the right
+        shade = shade.point(lambda v: int(v * 0.78))
+        bg = Image.composite(Image.new("RGB", (TW, TH), tint), bg, shade)
+        px = TW
+    else:
+        # blurred, darkened full-bleed background from the same frame
+        bg = src.resize((TW, int(TW * src.height / src.width)), Image.LANCZOS)
+        top = max(0, (bg.height - TH) // 2)
+        bg = bg.crop((0, top, TW, top + TH)).filter(ImageFilter.GaussianBlur(28))
+        bg = ImageEnhance.Brightness(bg).enhance(0.55)
+        overlay = Image.new("RGB", (TW, TH), tint)
+        bg = Image.blend(bg, overlay, 0.25)
+        # sharp portrait frame on the right
+        ph = TH - 60
+        pw = int(ph * src.width / src.height)
+        portrait = src.resize((pw, ph), Image.LANCZOS)
+        px, py = TW - pw - 70, 30
+        mask = Image.new("L", (pw, ph), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, pw, ph), radius=28, fill=255)
+        glow = Image.new("RGB", (pw + 24, ph + 24), accent)
+        gm = Image.new("L", glow.size, 0)
+        ImageDraw.Draw(gm).rounded_rectangle((0, 0, glow.width, glow.height), radius=36, fill=255)
+        bg.paste(glow, (px - 12, py - 12), gm)
+        bg.paste(portrait, (px, py), mask)
 
     draw = ImageDraw.Draw(bg)
-    left, max_w = 60, px - 60 - 50
+    left, max_w = 60, (int(TW * 0.62) if wide else px - 60 - 50)
     lines, font = _wrap(draw, text or "WATCH THIS", max_w, TH - 220)
     size = getattr(font, "size", 60)
     block_h = int(len(lines) * size * 1.12)

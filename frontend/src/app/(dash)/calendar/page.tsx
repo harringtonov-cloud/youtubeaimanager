@@ -68,7 +68,7 @@ export default function CalendarPage() {
                 ) : (
                   <li key={e.v.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-panel2 px-3 py-2 text-sm">
                     <span className="w-12 font-mono">{time(e.at)}</span>
-                    <button onClick={() => setOpen(e.v.id)} className="min-w-0 flex-1 truncate text-left font-medium hover:underline">{e.v.title}</button>
+                    <button onClick={() => setOpen(e.v.id)} className="min-w-0 flex-1 truncate text-left font-medium hover:underline">{e.v.format === "long" && <span className="mr-1.5 rounded bg-[#6d5efc]/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[#a79bff]">длинное</span>}{e.v.title}</button>
                     <Badge tone={statusTone(e.v.status)}>{STATUS_LABEL[e.v.status] ?? e.v.status}</Badge>
                     {["planned", "scripted", "seo_ready", "rendered", "ready"].includes(e.v.status) && data.open_slots.length > 0 && (
                       <select

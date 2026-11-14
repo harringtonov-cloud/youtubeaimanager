@@ -132,6 +132,10 @@ def validate(data: Any, s: AppSettings) -> tuple[dict, str]:
 
 
 def write_script(db: Session, video: Video) -> None:
+    if video.format == "long":  # the full version of a published Short: its own chaptered script
+        from . import long_script
+
+        return long_script.write_long_script(db, video)
     s = get_settings(db)
     if not llm.is_configured():
         raise PermanentError("LLM_API_KEY is not configured")

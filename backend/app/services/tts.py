@@ -60,11 +60,12 @@ async def _edge(text: str, voice: str, out: Path, sentences: Optional[list] = No
 
 def _synth_edge(text: str, voice: str, out: Path, sentences: Optional[list] = None) -> list[dict[str, Any]]:
     last: Optional[Exception] = None
+    limit = 120 if len(text) < 2500 else 420  # a 5-minute narration streams for a while
     for attempt in range(3):
         try:
             if sentences is not None:
                 sentences.clear()
-            words = asyncio.run(asyncio.wait_for(_edge(text, voice, out, sentences), timeout=120))
+            words = asyncio.run(asyncio.wait_for(_edge(text, voice, out, sentences), timeout=limit))
             if out.exists() and out.stat().st_size > 1000:
                 return words
             last = RuntimeError("edge-tts returned no audio")

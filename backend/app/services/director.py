@@ -184,6 +184,7 @@ def _pool_size(db: Session) -> int:
 def _taken_times(db: Session, horizon_end: datetime) -> list[datetime]:
     rows = db.execute(
         select(Video.scheduled_at).where(Video.scheduled_at.is_not(None), Video.status != CANCELLED,
+                                         Video.format != "long",  # long videos have their own schedule
                                          Video.scheduled_at < horizon_end + timedelta(days=1),
                                          Video.scheduled_at > utcnow() - timedelta(hours=1))
     ).all()

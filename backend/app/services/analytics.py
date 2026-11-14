@@ -143,6 +143,8 @@ def _collect(db: Session) -> list[dict[str, Any]]:
     for p in pubs:
         if not p.snapshots or not p.published_at or p.published_at > now - MATURITY:
             continue
+        if p.video and p.video.format == "long":  # learn from Shorts only (long videos are not comparable)
+            continue
         s = max(p.snapshots, key=lambda x: x.fetched_at)
         idea = p.video.idea if p.video else None
         rows.append({

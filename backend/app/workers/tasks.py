@@ -191,11 +191,16 @@ def _redispatch_stalled(db) -> int:
 @tracked("tick")
 def tick():
     """Every 5 minutes: resume stalled work, keep the calendar full, dispatch due publications."""
-    from ..services import director, first_comment, publisher
+    from ..services import director, first_comment, long_video, publisher
 
     with SessionLocal() as db:
         resumed = _redispatch_stalled(db)
         new_ids = director.plan_content(db)
+        try:  # the full version of a published Short (one per day); never blocks Shorts planning
+            new_ids = new_ids + long_video.plan_long_videos(db)
+        except Exception as e:
+            db.rollback()
+            log_event("long_video", f"planning the long video failed: {e}", level="WARNING")
         due = publisher.due_videos(db)
     for vid in new_ids:
         enqueue_stage(vid, "script")

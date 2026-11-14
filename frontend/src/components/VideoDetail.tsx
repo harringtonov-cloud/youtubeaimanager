@@ -39,7 +39,7 @@ export default function VideoDetail({ id, onClose, onChanged }: { id: number | n
     run(key, async () => { await api(path, { method: "POST" }); reload(); onChanged(); }, ok);
 
   return (
-    <Modal open={id !== null} onClose={onClose} title={v ? `#${v.id} · ${v.title}` : "Видео"} wide>
+    <Modal open={id !== null} onClose={onClose} title={v ? `#${v.id} · ${v.format === "long" ? "[длинное] " : ""}${v.title}` : "Видео"} wide>
       {error && <ErrorBox>{error}</ErrorBox>}
       {!v && !error && <div className="text-sm text-muted">Загрузка…</div>}
       {v && (

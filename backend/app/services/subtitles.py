@@ -146,7 +146,10 @@ def to_ass(chunks: list[list[dict[str, Any]]], emphasis: list[dict[str, Any]] | 
            width: int = 1080, height: int = 1920, font: str = "DejaVu Sans", style: str = "dark-blue") -> str:
     """Word-highlight captions (active word coloured) + optional emphasis texts per scene."""
     primary, highlight = _PALETTES.get(style, _PALETTES["dark-blue"])
-    font_size = int(width * 0.078)
+    wide = width > height  # 16:9: smaller text sitting lower, so it does not cover the picture
+    font_size = int(height * 0.062) if wide else int(width * 0.078)
+    cap_margin = int(height * 0.09) if wide else int(height * 0.24)
+    emph_margin = int(height * 0.08) if wide else int(height * 0.12)
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -156,8 +159,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,{font},{font_size},{primary},{primary},&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,7,2,2,60,60,{int(height * 0.24)},1
-Style: Emph,{font},{int(font_size * 1.15)},{highlight},{highlight},&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,8,3,8,60,60,{int(height * 0.12)},1
+Style: Cap,{font},{font_size},{primary},{primary},&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,{4 if wide else 7},2,2,60,60,{cap_margin},1
+Style: Emph,{font},{int(font_size * 1.15)},{highlight},{highlight},&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,{5 if wide else 8},3,8,60,60,{emph_margin},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
