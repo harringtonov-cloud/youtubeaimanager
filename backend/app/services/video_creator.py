@@ -61,6 +61,34 @@ def emphasis_events(scenes: list[dict], durs: list[float]) -> list[dict[str, Any
     return out
 
 
+SFX_LEAD = 0.10        # the whoosh starts slightly before the cut so its swell peaks on it
+SFX_MIN_GAP = 0.8      # never more often than this, even if the picture changes faster
+
+
+def cut_times(durs: list[float], shots: dict[int, tuple[int, float]], total: float) -> list[float]:
+    """Moments (seconds in the final video) where the picture changes, as whoosh start times.
+
+    * scene i begins at sum(durs[:i]) - that is where the crossfade into it starts
+    * `shots` maps a scene index to (shots, clip length) for scenes cut into several shots; the hard cuts
+      between them are spread evenly over the clip."""
+    cuts: list[float] = []
+    start = 0.0
+    for i, d in enumerate(durs):
+        if i > 0:
+            cuts.append(start)
+        n, length = shots.get(i, (1, d))
+        for k in range(1, n):
+            cuts.append(start + k * length / n)
+        start += d
+    out: list[float] = []
+    for t in sorted(cuts):
+        t = max(0.0, t - SFX_LEAD)
+        if t > total - 0.5 or (out and t - out[-1] < SFX_MIN_GAP):
+            continue
+        out.append(round(t, 2))
+    return out
+
+
 def render_video(db: Session, video: Video) -> None:
     if not video.script:
         raise PermanentError("script missing - cannot render")
@@ -88,6 +116,7 @@ def render_video(db: Session, video: Video) -> None:
         ai_ok, ai_used, ai_fail = True, 0, 0
         clips_meta: list[dict] = []
         scene_files: list[Path] = []
+        shots: dict[int, tuple[int, float]] = {}  # scene -> (shots, clip length) for hard cuts inside a scene
         for i, (sc, d) in enumerate(zip(scenes, durs)):
             length = d + (FADE if i < len(scenes) - 1 else 0.0)
             dst = work / f"scene{i:02d}.mp4"
@@ -106,11 +135,13 @@ def render_video(db: Session, video: Video) -> None:
                     clip = None
             if not clip and s.visual_source in ("auto", "ai") and ai_ok:
                 prompt = images.build_prompt(sc.get("visual_query") or "", sc.get("voiceover", ""),
-                                             str(script.get("title", "")), sc.get("image_prompt") or "")
+                                             str(script.get("title", "")), sc.get("image_prompt") or "",
+                                             style=images.pick_style(video.id))
                 pic = images.generate(prompt, work / f"pic{i:02d}.jpg", seed=video.id * 100 + i)
                 if pic:
                     try:
                         ff.scene_from_image_shots(pic, dst, length, variant=i)
+                        shots[i] = (ff.shot_count(length), length)
                         clips_meta.append({"scene": i, "provider": "pollinations",
                                            "license": "AI-generated image (Pollinations, flux)", "prompt": prompt[:300]})
                         ai_used += 1
@@ -161,12 +192,25 @@ def render_video(db: Session, video: Video) -> None:
             except Exception as e:  # music is optional
                 music = None
                 log_event("video", f"background music skipped: {e}", level="WARNING", video_id=video.id)
+        sfx = None
+        if s.sfx_enabled:
+            try:  # "вжух" on every picture change; optional, never blocks the render
+                whoosh = work / "whoosh.wav"
+                ff.make_whoosh(whoosh)
+                track = work / "sfx.wav"
+                if ff.make_sfx_track(track, whoosh, cut_times(durs, shots, total_video), total_video):
+                    sfx = track
+            except Exception as e:
+                sfx = None
+                log_event("video", f"sound effects skipped: {e}", level="WARNING", video_id=video.id)
         try:
-            ff.final_mix(base, voice["path"], ass, out, total_video, music=music, music_volume=s.music_volume)
+            ff.final_mix(base, voice["path"], ass, out, total_video, music=music, music_volume=s.music_volume,
+                         sfx=sfx, sfx_volume=s.sfx_volume)
         except ff.FFmpegError as e:
-            if not music:
+            if not music and not sfx:
                 raise
-            log_event("video", f"mix with music failed, rendering voice-only: {e}", level="WARNING", video_id=video.id)
+            log_event("video", f"mix with music/effects failed, rendering voice-only: {e}", level="WARNING",
+                      video_id=video.id)
             ff.final_mix(base, voice["path"], ass, out, total_video)
         info = ff.probe(out)
         if not (info["has_video"] and info["has_audio"]) or info["width"] != ff.W or info["height"] != ff.H:

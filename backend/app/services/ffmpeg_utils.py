@@ -101,8 +101,7 @@ def scene_from_image(src: str | Path, dst: str | Path, duration: float, variant:
 def scene_from_image_shots(src: str | Path, dst: str | Path, duration: float, variant: int = 0,
                            max_shot: float = 2.8) -> None:
     """Like scene_from_image, but long scenes are cut into several shots (different zoom/drift) for pace."""
-    n = int(duration // max_shot) if duration > max_shot * 1.25 else 1
-    n = min(max(n, 1), 3)
+    n = shot_count(duration, max_shot)
     if n == 1:
         return scene_from_image(src, dst, duration, variant)
     d = Path(dst)
@@ -184,24 +183,82 @@ def make_music(dst: str | Path, duration: float, variant: int = 0) -> None:
     run([*cmd, "-filter_complex", fc, "-map", "[m]", "-t", d, str(dst)], 120)
 
 
+WHOOSH_SECONDS = 0.5
+MAX_SFX_HITS = 24
+
+
+def make_whoosh(dst: str | Path) -> None:
+    """Original "вжух" swoosh: a band-passed noise swell plus a rising chirp (synthetic, royalty-free)."""
+    run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+         "-f", "lavfi", "-i", f"anoisesrc=d={WHOOSH_SECONDS}:c=pink:r=44100:a=0.8",
+         "-f", "lavfi", "-i", f"aevalsrc=exprs='0.35*sin(2*PI*(260*t+3200*t*t))':d={WHOOSH_SECONDS}:s=44100",
+         "-filter_complex",
+         "[0]highpass=f=400,lowpass=f=6000,afade=t=in:d=0.2,afade=t=out:st=0.2:d=0.3[n];"
+         "[1]afade=t=in:d=0.12,afade=t=out:st=0.18:d=0.32,lowpass=f=2500[c];"
+         "[n][c]amix=inputs=2:normalize=0,volume=1.2,alimiter=limit=0.9,"
+         "aformat=sample_rates=44100:channel_layouts=stereo[w]",
+         "-map", "[w]", "-t", f"{WHOOSH_SECONDS}", str(dst)], 60)
+
+
+def make_sfx_track(dst: str | Path, whoosh: str | Path, times: list[float], total: float) -> int:
+    """One stereo track of `total` seconds with a whoosh starting at each time (seconds). Returns the hit count."""
+    hits = sorted({round(max(0.0, t), 2) for t in times if 0.0 <= t < total - 0.15})[:MAX_SFX_HITS]
+    if not hits:
+        return 0
+    n = len(hits)
+    split = "".join(f"[w{i}]" for i in range(n))
+    parts = [f"[0:a]asplit={n}{split}" if n > 1 else "[0:a]anull[w0]"]
+    for i, t in enumerate(hits):
+        ms = int(t * 1000)
+        parts.append(f"[w{i}]adelay={ms}|{ms}[d{i}]")
+    mix_in = "".join(f"[d{i}]" for i in range(n))
+    parts.append(f"{mix_in}amix=inputs={n}:normalize=0,apad[sfx]")
+    run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(whoosh), "-filter_complex", ";".join(parts),
+         "-map", "[sfx]", "-t", f"{total:.3f}", "-ar", "44100", "-ac", "2", str(dst)], 120)
+    return n
+
+
+def shot_count(duration: float, max_shot: float = 2.8) -> int:
+    """How many shots scene_from_image_shots cuts a scene of this length into (kept in one place)."""
+    n = int(duration // max_shot) if duration > max_shot * 1.25 else 1
+    return min(max(n, 1), 3)
+
+
 def final_mix(video: str | Path, audio: str | Path, ass: Optional[str | Path], dst: str | Path,
-              total: float, music: Optional[str | Path] = None, music_volume: float = 0.12) -> None:
-    """Burn captions, mix the voice-over (loudness-normalised) and optional ducked music, faststart MP4."""
+              total: float, music: Optional[str | Path] = None, music_volume: float = 0.12,
+              sfx: Optional[str | Path] = None, sfx_volume: float = 0.5) -> None:
+    """Burn captions, mix the voice-over (loudness-normalised), optional ducked music and cut sound effects."""
     vf = ["format=yuv420p"]
     if ass:
         vf.insert(0, f"ass={_ass_filter_path(ass)}")
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(video), "-i", str(audio)]
+    idx = 2
+    music_idx = sfx_idx = None
     if music:
         cmd += ["-i", str(music)]
-        fc = (f"[0:v]{','.join(vf)}[v];"
-              "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11,apad,asplit=2[vo][sc];"
-              f"[2:a]volume={music_volume:.3f}[bg];"
-              "[bg][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[duck];"
-              "[vo][duck]amix=inputs=2:normalize=0:duration=first[a]")
-        cmd += ["-filter_complex", fc, "-map", "[v]", "-map", "[a]"]
-    else:
+        music_idx, idx = idx, idx + 1
+    if sfx:
+        cmd += ["-i", str(sfx)]
+        sfx_idx, idx = idx, idx + 1
+    if not music and not sfx:
         cmd += ["-vf", ",".join(vf), "-af", "loudnorm=I=-16:TP=-1.5:LRA=11,apad",
                 "-map", "0:v:0", "-map", "1:a:0"]
+    else:
+        fc = [f"[0:v]{','.join(vf)}[v]"]
+        if music:
+            fc.append("[1:a]loudnorm=I=-16:TP=-1.5:LRA=11,apad,asplit=2[vo][sc]")
+            fc.append(f"[{music_idx}:a]volume={music_volume:.3f}[bg]")
+            fc.append("[bg][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[duck]")
+            layers = ["[vo]", "[duck]"]
+        else:
+            fc.append("[1:a]loudnorm=I=-16:TP=-1.5:LRA=11,apad[vo]")
+            layers = ["[vo]"]
+        if sfx:
+            fc.append(f"[{sfx_idx}:a]volume={sfx_volume:.3f}[fx]")
+            layers.append("[fx]")
+        fc.append(f"{''.join(layers)}amix=inputs={len(layers)}:normalize=0:duration=first,"
+                  "alimiter=limit=0.95:level=0[a]")
+        cmd += ["-filter_complex", ";".join(fc), "-map", "[v]", "-map", "[a]"]
     cmd += [*_VENC, "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2", "-t", f"{total:.3f}",
             "-movflags", "+faststart", str(dst)]
     run(cmd, 1200)

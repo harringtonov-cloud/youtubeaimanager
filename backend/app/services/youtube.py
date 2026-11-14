@@ -528,6 +528,21 @@ def find_own_comment(db: Session, youtube_video_id: str, text: str) -> Optional[
     return None
 
 
+def list_comment_threads(db: Session, youtube_video_id: str, max_results: int = 30) -> list[dict[str, Any]]:
+    """Newest top-level comment threads of a video (1 quota unit)."""
+    data = api(db, "GET", f"{API}/commentThreads",
+               params={"part": "snippet", "videoId": youtube_video_id, "maxResults": max_results, "order": "time",
+                       "textFormat": "plainText"})
+    return list(data.get("items", []))
+
+
+def reply_to_comment(db: Session, parent_comment_id: str, text: str) -> str:
+    """Reply to a top-level comment as the channel (50 quota units). Returns the new comment id."""
+    data = api(db, "POST", f"{API}/comments", params={"part": "snippet"},
+               json_body={"snippet": {"parentId": parent_comment_id, "textOriginal": text}})
+    return str(data.get("id") or "")
+
+
 def classify_comment_error(e: YouTubeError) -> str:
     """retry | skip | reauth - what to do after a failed comment attempt."""
     reason = (e.reason or "").lower()

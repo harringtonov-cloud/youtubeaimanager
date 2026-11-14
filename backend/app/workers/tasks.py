@@ -201,9 +201,13 @@ def tick():
         enqueue_stage(vid, "script")
     for vid in due:
         enqueue_stage(vid, "publish")
-    try:  # first comments are posted a few minutes after the upload, with retries
+    try:  # first comments are posted a few minutes after the upload, with retries; then viewer replies
+        from ..services import comment_replies
+
         with SessionLocal() as db:
             comments = first_comment.process_pending(db)
+        with SessionLocal() as db:
+            comments = f"{comments} replies={comment_replies.process(db)}"
     except Exception as e:
         comments = f"error: {e}"
     return f"resumed={resumed} planned={len(new_ids)} publish_due={len(due)} comments={comments}"

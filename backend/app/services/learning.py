@@ -26,8 +26,29 @@ def words_per_second(code: str) -> float:
             "ko": 3.0}.get(c, 2.5)
 
 
+WINNER_WEIGHTS = (0.40, 0.45, 0.15)  # views per hour, retention (avg % watched), engagement (likes+comments)
+
+
+def _rank_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Order videos best-first by a composite of views/hour, retention and engagement (each relative to the channel).
+
+    Retention gets the biggest weight: it is what Shorts distribution rewards, and views/hour alone favours luck
+    (a lucky publishing slot) over a format that holds the audience. Sets `row["score"]` (0..100)."""
+    from .analytics import percentile_scores
+
+    if not rows:
+        return rows
+    wv, wr, we = WINNER_WEIGHTS
+    rate = percentile_scores([r["rate"] for r in rows])
+    ret = percentile_scores([float(r["retention"] or 0.0) for r in rows])
+    eng = percentile_scores([(r["likes"] + r["comments"]) / r["views"] if r["views"] else 0.0 for r in rows])
+    for r, a, b, c in zip(rows, rate, ret, eng):
+        r["score"] = wv * a + wr * b + we * c
+    return sorted(rows, key=lambda r: (r["score"], r["rate"]), reverse=True)
+
+
 def top_performers(db: Session, n: int = 3) -> list[dict[str, Any]]:
-    """Best videos so far by views per hour (fair to fresh videos), with their likes, retention and format."""
+    """Best videos so far (views/hour + retention + engagement), with their likes, retention and format."""
     from datetime import timedelta
 
     from ..models import utcnow
@@ -53,8 +74,15 @@ def top_performers(db: Session, n: int = 3) -> list[dict[str, Any]]:
             "category": idea.category if idea else "", "hook_style": idea.hook_style if idea else "",
             "keywords": list(idea.keywords or []) if idea else [],
         })
-    rows.sort(key=lambda r: r["rate"], reverse=True)
-    return rows[:n]
+    return _rank_rows(rows)[:n]
+
+
+def weak_performers(db: Session, n: int = 2) -> list[dict[str, Any]]:
+    """Worst videos with enough data (3+ mature videos needed), so the writers know what to avoid."""
+    rows = top_performers(db, n=1000)
+    if len(rows) < 4:
+        return []
+    return [r for r in rows[-n:] if r["score"] < 35.0]
 
 
 def digest(db: Session, max_chars: int = 1800) -> str:
@@ -83,8 +111,14 @@ def digest(db: Session, max_chars: int = 1800) -> str:
             ret = f", {w['retention']:.0f}% watched" if w["retention"] else ""
             lines.append(f"\"{w['title']}\" - {w['views']} views, {w['likes']} likes{ret}; category={w['category']}, "
                          f"hook style={w['hook_style']}, keywords={', '.join(w['keywords'][:4])}")
-        parts.insert(0, "TOP PERFORMERS (our audience clearly likes these - make close relatives of them):\n- "
+        parts.insert(0, "TOP PERFORMERS (our audience watches these to the end - make close relatives of them: same pace, hook type and story shape):\n- "
                      + "\n- ".join(lines))
+
+    weak = weak_performers(db)
+    if weak:
+        parts.append("WEAK (viewers left early or ignored these - do not repeat their style): "
+                     + "; ".join(f"\"{w['title']}\" ({w['views']} views"
+                                 + (f", {w['retention']:.0f}% watched" if w["retention"] else "") + ")" for w in weak))
 
     if not parts:
         return "No performance data yet - explore broadly and vary topics, hooks and formats."

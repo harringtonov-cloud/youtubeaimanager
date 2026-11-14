@@ -40,6 +40,10 @@ class AppSettings(BaseModel):
     music_enabled: bool = True
     music_volume: float = Field(0.12, ge=0.02, le=0.4)
     first_comment_enabled: bool = True
+    sfx_enabled: bool = True   # short "вжух" whoosh on every picture change
+    sfx_volume: float = Field(0.5, ge=0.05, le=1.0)
+    auto_reply_enabled: bool = True          # AI replies to viewers' comments under our videos
+    auto_reply_per_day: int = Field(15, ge=1, le=60)
 
     # --- publishing ---
     auto_publish_enabled: bool = False

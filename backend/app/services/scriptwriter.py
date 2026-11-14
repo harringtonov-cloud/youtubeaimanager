@@ -27,6 +27,12 @@ def _targets(s: AppSettings) -> tuple[int, int, int]:
 def _prompt(db: Session, video: Video, s: AppSettings, feedback: str = "") -> list[dict]:
     idea = video.idea
     lo, hi, mid = _targets(s)
+    recent = db.execute(select(Video.script).where(Video.script.is_not(None), Video.id != video.id)
+                        .order_by(Video.id.desc()).limit(8)).all()
+    recent_hooks = [str(sc.get("hook", ""))[:90] for (sc,) in recent if isinstance(sc, dict) and sc.get("hook")]
+    variety = ("\nVARIETY: our latest hooks were: " + " | ".join(f'"{h}"' for h in recent_hooks)
+               + "\nDo NOT reuse their first words, sentence shape or narrator attitude - viewers must not feel "
+                 "that every video is the same template.") if recent_hooks else ""
     system = (
         "You are an award-winning YouTube Shorts scriptwriter. You write ORIGINAL scripts in a natural spoken voice: "
         "short sentences, concrete facts, zero filler, no clickbait lies, no unverifiable claims, no copying existing "
@@ -44,8 +50,11 @@ Tone: {s.tone}
 Language of voice-over and on-screen text: {learning.language_name(s.language)}
 
 Length: the full voice-over must be between {lo} and {hi} words (aim for about {mid}).
-HOOK RULES: the first sentence must be under 12 words, open a curiosity gap or state a startling specific fact
-(a number, a contradiction, a "what if"), and never start with greetings, "Did you know" or "In this video".
+HOOK RULES: viewers decide in the first 2 seconds. The first sentence must be under 10 words, start IN THE MIDDLE
+of the action or with the most absurd / startling concrete fact (a number, a contradiction, a "what if"), and never
+start with greetings, "Did you know" or "In this video". No introductions, no context before the hook.
+LOOP RULE: write the last sentence so that it flows grammatically and in meaning into the first sentence - when the
+Short replays, the end and the beginning must sound like one continuous story (viewers who re-watch boost reach).
 Keep the pace fast: no scene longer than ~9 seconds of speech; end every beat on a mini-cliffhanger when possible.
 Structure: 1) HOOK in the first 3 seconds - a surprising, specific statement or question that creates curiosity;
 2) 3-6 tight content beats, each with a new fact or reveal; 3) a satisfying payoff or twist; 4) a punchy closing line that
@@ -55,7 +64,7 @@ the hook challenges a common belief ("You think X? You are wrong.") or warns ("T
 documentary male narrator tone, simple words, one new fact every 3-4 seconds, a final line that reframes the hook.
 
 What we learned from past videos (use it, do not mention it):
-{learning.digest(db, 900)}
+{learning.digest(db, 900)}{variety}
 {('FIX THIS FROM THE PREVIOUS ATTEMPT: ' + feedback) if feedback else ''}
 
 Return JSON:

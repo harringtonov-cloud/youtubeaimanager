@@ -55,8 +55,10 @@ Return JSON: {{"title": "", "description": "", "hashtags": [], "tags": [], "keyw
 "category_id": "", "thumbnail": {{"text": "", "subtext": "", "mood": ""}},
 "comment": ""}}
 
-comment: one short pinned-style first comment (max 140 characters, in the video language) that asks viewers a
-specific, easy-to-answer question related to the video so they reply. No links, no hashtags."""
+comment: one short pinned-style first comment (max 140 characters, in the video language). It must be a question that
+takes one word to answer: a clear A-or-B choice taken from the video ("Would you sign it or run: yes or no?"), or a
+"which would you pick: X or Y?". Specific to this video, playful, answerable without thinking. No links, no hashtags,
+no "like/subscribe" begging."""
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 

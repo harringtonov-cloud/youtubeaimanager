@@ -182,6 +182,13 @@ def run_cycle(budget_s: Optional[float] = None) -> dict[str, Any]:
                 summary["comments"] = first_comment.process_pending(db)
         except Exception as e:
             summary["comments"] = f"error: {e}"
+        try:  # friendly AI replies to viewers' comments (self-throttled, capped per day)
+            from .services import comment_replies
+
+            with SessionLocal() as db:
+                summary["replies"] = comment_replies.process(db)
+        except Exception as e:
+            summary["replies"] = f"error: {e}"
     except BaseException as e:
         status, detail = "error", f"{type(e).__name__}: {e}"
         log_event("runner", f"cycle crashed: {detail}", level="ERROR")

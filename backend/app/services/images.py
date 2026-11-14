@@ -21,22 +21,37 @@ log = get_logger("images")
 BASE = "https://image.pollinations.ai/prompt/"
 # the anonymous tier is throttled to ~1 request / 15 s
 MIN_GAP_S = 16.0
-STYLE = ("cinematic illustration, ultra detailed, vivid colors, dramatic lighting, vertical composition, "
-         "no text, no letters, no watermark")
+_SUFFIX = "vertical composition, no text, no letters, no watermark"
+STYLE = f"cinematic illustration, ultra detailed, vivid colors, dramatic lighting, {_SUFFIX}"
+# One look per video (chosen by video id): different videos look different, one video stays consistent.
+VISUAL_STYLES = [
+    STYLE,
+    f"warm cozy storybook illustration, soft painted textures, gentle colors, {_SUFFIX}",
+    f"3D claymation style, handmade plasticine look, soft studio light, {_SUFFIX}",
+    f"vintage 35mm film photo look, fine grain, warm nostalgic colors, {_SUFFIX}",
+    f"bold flat vector cartoon, thick outlines, bright playful palette, {_SUFFIX}",
+    f"soft watercolor and ink illustration, expressive, light paper texture, {_SUFFIX}",
+]
 _last_call = 0.0
 
 
-def build_prompt(visual_query: str, narration: str = "", topic: str = "", image_prompt: str = "") -> str:
+def pick_style(seed: int) -> str:
+    return VISUAL_STYLES[abs(int(seed)) % len(VISUAL_STYLES)]
+
+
+def build_prompt(visual_query: str, narration: str = "", topic: str = "", image_prompt: str = "",
+                 style: str = "") -> str:
+    style = style or STYLE
     ip = re.sub(r"\s+", " ", image_prompt or "").strip()
     if ip:  # a dedicated, scene-specific description written by the scriptwriter
-        return f"{ip[:300]}, {STYLE}"[:480]
+        return f"{ip[:300]}, {style}"[:480]
     parts = [visual_query.strip()]
     if topic:
         parts.append(f"about {topic.strip()}")
     gist = re.sub(r"\s+", " ", narration or "").strip()[:110]
     if gist:
         parts.append(f"scene: {gist}")
-    parts.append(STYLE)
+    parts.append(style)
     return ", ".join(p for p in parts if p)[:480]
 
 

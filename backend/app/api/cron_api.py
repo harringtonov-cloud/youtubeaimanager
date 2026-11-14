@@ -35,13 +35,18 @@ def _publish_due() -> None:
 
 
 def _post_comments() -> None:
-    from ..services import first_comment
+    from ..services import comment_replies, first_comment
 
     try:
         with SessionLocal() as db:
             first_comment.process_pending(db)
     except Exception as e:  # never crash the API process
         log_event("api", f"cron comments crashed: {e}", level="ERROR")
+    try:
+        with SessionLocal() as db:
+            comment_replies.process(db)  # throttles itself: at most one sweep per 15 minutes
+    except Exception as e:
+        log_event("api", f"cron replies crashed: {e}", level="ERROR")
 
 
 @router.api_route("/tick", methods=["GET", "HEAD"])

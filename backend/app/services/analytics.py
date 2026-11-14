@@ -124,11 +124,13 @@ def percentile_scores(values: list[float]) -> list[float]:
 
 
 def video_scores(rows: list[dict[str, Any]]) -> list[float]:
-    """Composite 0..100: views (50%), retention (35%), engagement (15%) - each relative to the channel."""
+    """Composite 0..100: views (40%), retention (45%), engagement (15%) - each relative to the channel.
+
+    Retention weighs most: YouTube spreads Shorts that people watch to the end (and re-watch)."""
     views = percentile_scores([r["views"] for r in rows])
     ret = percentile_scores([r["retention"] for r in rows])
     eng = percentile_scores([r["engagement"] for r in rows])
-    return [0.5 * v + 0.35 * r + 0.15 * e for v, r, e in zip(views, ret, eng)]
+    return [0.4 * v + 0.45 * r + 0.15 * e for v, r, e in zip(views, ret, eng)]
 
 
 def _collect(db: Session) -> list[dict[str, Any]]:
