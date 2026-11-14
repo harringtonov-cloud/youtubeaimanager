@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from ..models import AnalyticsSnapshot, Idea, LogEntry, Publication, Video
+from ..services import first_comment
 
 
 def iso(dt: Optional[datetime]) -> Optional[str]:
@@ -43,6 +44,7 @@ def publication_dict(p: Optional[Publication]) -> Optional[dict[str, Any]]:
         "thumbnail_set": p.thumbnail_set,
         "upload_attempts": p.upload_attempts,
         "last_error": p.last_error,
+        "comment": first_comment.public_status(p.video),
     }
 
 

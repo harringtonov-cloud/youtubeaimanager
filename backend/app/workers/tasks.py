@@ -191,7 +191,7 @@ def _redispatch_stalled(db) -> int:
 @tracked("tick")
 def tick():
     """Every 5 minutes: resume stalled work, keep the calendar full, dispatch due publications."""
-    from ..services import director, publisher
+    from ..services import director, first_comment, publisher
 
     with SessionLocal() as db:
         resumed = _redispatch_stalled(db)
@@ -201,7 +201,12 @@ def tick():
         enqueue_stage(vid, "script")
     for vid in due:
         enqueue_stage(vid, "publish")
-    return f"resumed={resumed} planned={len(new_ids)} publish_due={len(due)}"
+    try:  # first comments are posted a few minutes after the upload, with retries
+        with SessionLocal() as db:
+            comments = first_comment.process_pending(db)
+    except Exception as e:
+        comments = f"error: {e}"
+    return f"resumed={resumed} planned={len(new_ids)} publish_due={len(due)} comments={comments}"
 
 
 @celery_app.task(name="yam.generate_ideas")

@@ -34,6 +34,16 @@ def _publish_due() -> None:
         log_event("api", f"cron publish crashed: {e}", level="ERROR")
 
 
+def _post_comments() -> None:
+    from ..services import first_comment
+
+    try:
+        with SessionLocal() as db:
+            first_comment.process_pending(db)
+    except Exception as e:  # never crash the API process
+        log_event("api", f"cron comments crashed: {e}", level="ERROR")
+
+
 @router.api_route("/tick", methods=["GET", "HEAD"])
 def tick(background: BackgroundTasks, key: str = Query("")):
     expected = get_config().cron_key
@@ -45,4 +55,5 @@ def tick(background: BackgroundTasks, key: str = Query("")):
         due = publisher.due_videos(db)
     if due:
         background.add_task(_publish_due)
+    background.add_task(_post_comments)  # first comments of already published videos (cheap when nothing is due)
     return {"ok": True, "due": len(due)}

@@ -80,6 +80,15 @@ export default function VideoDetail({ id, onClose, onChanged }: { id: number | n
             {v.error && <ErrorBox>{v.error}{v.failed_stage ? ` (этап: ${v.failed_stage})` : ""}</ErrorBox>}
             {v.publication?.url && <a href={v.publication.url} target="_blank" rel="noreferrer" className="text-brand underline">{v.publication.url}</a>}
             {v.publication?.last_error && <ErrorBox>Загрузка: {v.publication.last_error}</ErrorBox>}
+            {v.publication?.comment && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                <span>Первый комментарий:</span>
+                <Badge tone={v.publication.comment.status === "posted" ? "ok" : v.publication.comment.status === "pending" || v.publication.comment.status === "posting" ? "info" : "bad"}>
+                  {({ posted: "опубликован", pending: "ждёт очереди", posting: "публикуется", skipped: "пропущен", failed: "не удалось" } as Record<string, string>)[v.publication.comment.status] ?? v.publication.comment.status}
+                </Badge>
+                {v.publication.comment.error && <span className="text-bad">{v.publication.comment.error}</span>}
+              </div>
+            )}
 
 
             {v.seo && (

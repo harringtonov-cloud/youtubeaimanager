@@ -174,6 +174,14 @@ def run_cycle(budget_s: Optional[float] = None) -> dict[str, Any]:
             summary["plan"] = f"error: {e}"
 
         summary["pipeline"] = process_videos(deadline)
+
+        try:  # first comments of published videos (YouTube needs a few minutes after the upload)
+            from .services import first_comment
+
+            with SessionLocal() as db:
+                summary["comments"] = first_comment.process_pending(db)
+        except Exception as e:
+            summary["comments"] = f"error: {e}"
     except BaseException as e:
         status, detail = "error", f"{type(e).__name__}: {e}"
         log_event("runner", f"cycle crashed: {detail}", level="ERROR")

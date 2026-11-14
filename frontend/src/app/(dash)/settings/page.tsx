@@ -163,7 +163,7 @@ export default function SettingsPage() {
             </Field>
             <Field label="ID категории по умолчанию" hint="27 = Образование, 28 = Наука и технологии"><input className={inputCls} value={form.category_id} onChange={(e) => set("category_id", e.target.value)} /></Field>
             <Toggle checked={form.music_enabled} onChange={(v) => set("music_enabled", v)} label="Фоновая музыка" hint="Мягкая фоновая музыка, которая становится тише, когда говорит голос" />
-            <Toggle checked={form.first_comment_enabled} onChange={(v) => set("first_comment_enabled", v)} label="Публиковать первый комментарий" hint="После публикации добавляет вопрос, чтобы вызвать ответы (пропускается, если YouTube откажет)" />
+            <Toggle checked={form.first_comment_enabled} onChange={(v) => set("first_comment_enabled", v)} label="Публиковать первый комментарий" hint="Через несколько минут после публикации добавляет вопрос, чтобы вызвать ответы. Если YouTube откажет, система повторит попытку позже (статус виден в карточке видео)" />
             <Toggle checked={form.require_manual_approval} onChange={(v) => set("require_manual_approval", v)} label="Требовать моего одобрения перед публикацией" hint="Видео ждут, пока вы не нажмёте «Одобрить» в Видеостудии" />
             <Toggle checked={form.synthetic_media_disclosure} onChange={(v) => set("synthetic_media_disclosure", v)} label="Помечать контент, созданный ИИ" hint="Добавляет пометку в описание и ставит флаг YouTube об изменённом/синтетическом контенте" />
             <Toggle checked={form.made_for_kids} onChange={(v) => set("made_for_kids", v)} label="Сделано для детей" hint="Оставьте выключенным, если канал не ориентирован на детей (отключает комментарии и т. д.)" />

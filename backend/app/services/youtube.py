@@ -34,10 +34,13 @@ API = "https://www.googleapis.com/youtube/v3"
 UPLOAD_API = "https://www.googleapis.com/upload/youtube/v3"
 ANALYTICS_API = "https://youtubeanalytics.googleapis.com/v2/reports"
 
+COMMENT_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"  # commentThreads.insert needs this one
+
 SCOPES = [
     "https://www.googleapis.com/auth/youtube",              # upload, thumbnails, channel + playlist read
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
+    COMMENT_SCOPE,                                          # first comment under the video
 ]
 CHUNK = 16 * 256 * 1024  # 4 MiB, must be a multiple of 256 KiB
 
@@ -493,10 +496,50 @@ def set_thumbnail(db: Session, youtube_video_id: str, image_path: str | Path) ->
     _raise_for(r)
 
 
-def post_comment(db: Session, youtube_video_id: str, text: str) -> None:
-    api(db, "POST", f"{API}/commentThreads", params={"part": "snippet"},
-        json_body={"snippet": {"videoId": youtube_video_id,
-                               "topLevelComment": {"snippet": {"textOriginal": text}}}})
+def has_scope(db: Session, scope: str) -> bool:
+    """Was this permission granted when the channel was connected? (older connections lack newer scopes)"""
+    acct = get_account(db)
+    return bool(acct and scope in (acct.scopes or "").split())
+
+
+def post_comment(db: Session, youtube_video_id: str, text: str) -> str:
+    """Insert a top-level comment as the channel owner. Returns the comment thread id."""
+    data = api(db, "POST", f"{API}/commentThreads", params={"part": "snippet"},
+               json_body={"snippet": {"videoId": youtube_video_id,
+                                      "topLevelComment": {"snippet": {"textOriginal": text}}}})
+    return str(data.get("id") or "")
+
+
+def find_own_comment(db: Session, youtube_video_id: str, text: str) -> Optional[str]:
+    """Id of a comment thread under the video that the channel itself wrote with this text (duplicate guard)."""
+    acct = get_account(db)
+    if acct is None:
+        return None
+    data = api(db, "GET", f"{API}/commentThreads",
+               params={"part": "snippet", "videoId": youtube_video_id, "maxResults": 50, "order": "time",
+                       "textFormat": "plainText"})
+    want = " ".join(text.split()).lower()
+    for it in data.get("items", []):
+        top = ((it.get("snippet") or {}).get("topLevelComment") or {}).get("snippet") or {}
+        author = (top.get("authorChannelId") or {}).get("value")
+        body = " ".join(str(top.get("textOriginal") or top.get("textDisplay") or "").split()).lower()
+        if author == acct.channel_id and body == want:
+            return str(it.get("id") or "")
+    return None
+
+
+def classify_comment_error(e: YouTubeError) -> str:
+    """retry | skip | reauth - what to do after a failed comment attempt."""
+    reason = (e.reason or "").lower()
+    msg = str(e).lower()
+    if reason in ("insufficientpermissions", "access_token_scope_insufficient") or "insufficient authentication scopes" in msg:
+        return "reauth"
+    if reason in ("commentsdisabled", "channelcommentsdisabled", "invalidcommentmetadata", "commenttoolong",
+                  "operationnotsupported", "ineligibleaccount"):
+        return "skip"
+    if e.status == 400:
+        return "skip"
+    return "retry"  # processing, 404 videoNotFound right after upload, 403 forbidden, 5xx, network
 
 
 def video_details(db: Session, ids: list[str]) -> dict[str, dict[str, Any]]:
