@@ -15,9 +15,10 @@ _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 class AppSettings(BaseModel):
     # --- channel / content strategy ---
-    niche: str = Field("абсурдные тёплые истории про официальные ситуации и необычные факты", max_length=300)
-    audience: str = Field("русскоязычные зрители Shorts", max_length=300)
-    language: str = Field("ru", max_length=10, description="Language of scripts, voice-over, SEO (ISO code)")
+    niche: str = Field("absurd, warm, funny stories where official bureaucracy meets everyday life, plus surprising facts "
+                       "and myth-busting about how everyday things really work", max_length=300)
+    audience: str = Field("English-speaking YouTube Shorts viewers", max_length=300)
+    language: str = Field("en", max_length=10, description="Language of scripts, voice-over, SEO (ISO code)")
     tone: str = Field("energetic, curious, concise, no clickbait lies", max_length=300)
     forbidden_topics: str = Field(
         "politics and elections, violence, adult content, medical or financial advice, hate speech, tragedies",
@@ -113,8 +114,9 @@ def get_settings(db: Session) -> AppSettings:
         from .config import get_config
 
         data["timezone"] = get_config().timezone
-    if not get_flag(db, "ru_defaults_v1"):  # until the owner saves settings once, Russian is the default
-        data.update({"language": "ru", "niche": AppSettings.model_fields["niche"].default,
+    if not get_flag(db, "en_defaults_v1"):  # the channel moved to English: until the owner saves settings once
+        data.update({"language": "en", "long_video_language": "en", "tts_voice": "", "long_video_voice": "",
+                     "niche": AppSettings.model_fields["niche"].default,
                      "audience": AppSettings.model_fields["audience"].default})
     try:
         return AppSettings(**data)
@@ -140,7 +142,7 @@ def update_settings(db: Session, patch: dict[str, Any]) -> AppSettings:
     else:
         row.value = validated.model_dump()
     db.commit()
-    set_flag(db, "ru_defaults_v1", True)
+    set_flag(db, "en_defaults_v1", True)
     return validated
 
 

@@ -59,7 +59,7 @@ Keep the pace fast: no scene longer than ~9 seconds of speech; end every beat on
 Structure: 1) HOOK in the first 3 seconds - a surprising, specific statement or question that creates curiosity;
 2) 3-6 tight content beats, each with a new fact or reveal; 3) a satisfying payoff or twist; 4) a punchy closing line that
 echoes the hook so the video loops seamlessly. NO "subscribe/like/follow" begging.
-PROVEN STYLE (viral Russian-language Shorts): a myth-busting or "how it really works" explainer about everyday things;
+PROVEN STYLE (viral Shorts): a myth-busting or "how it really works" explainer about everyday things;
 the hook challenges a common belief ("You think X? You are wrong.") or warns ("This job is not for ...");
 documentary male narrator tone, simple words, one new fact every 3-4 seconds, a final line that reframes the hook.
 
@@ -78,7 +78,7 @@ Return JSON:
 The scenes' voice-over together is the complete narration, in order, starting with the hook and ending with the
 closing line. Use {MIN_SCENES}-{MAX_SCENES} scenes. PACE: one scene per sentence or half-sentence (about 2-3 seconds of speech each),
 so a 35-second video has 10-14 scenes; each scene gets its own different picture.
-Story format works best (about 36 seconds, 90-110 words in Russian): hook = the absurd premise in one sentence;
+Story format works best (about 36 seconds, {int(36 * learning.words_per_second(s.language)) - 10}-{int(36 * learning.words_per_second(s.language)) + 10} words): hook = the absurd premise in one sentence;
 then escalation in 4-5 steps (a neighbour films it, officials get involved, an expert is amazed, an official recognition);
 finish with a funny reversal or a question to the viewer. It is clearly fictional comedy: invented characters only.
 Story format also works great: a short absurd/heartwarming "unbelievable but true-sounding" story with fast escalation

@@ -46,12 +46,19 @@ def _user_prompt(s: AppSettings, signals: list[dict], digest: str, recent: list[
     sig = "\n".join(f"- {x['title']} ({x['source']}{', ' + x['signal'] if x.get('signal') else ''})"
                     for x in signals[:30]) or "- (no trend data available)"
     rec = "\n".join(f"- {t}" for t in recent[:60]) or "- (none yet)"
+    lang = learning.language_name(s.language)
+    title_examples = (
+        '"Кота официально зачислили в МЧС", "Дворник залил идеальный каток из шланга", "Снеговика оформили в ДПС"'
+        if s.language.lower().startswith("ru") else
+        '"A cat was officially enrolled in the fire department", "A janitor built a perfect ice rink with a garden hose", '
+        '"A snowman was issued a parking ticket"')
+    not_english = ", never in English" if not s.language.lower().startswith("en") else ""
     return f"""Channel niche: {s.niche}
 Audience: {s.audience}
 Tone: {s.tone}
 Language of the channel: {learning.language_name(s.language)}
-IMPORTANT: write EVERY idea (topic, angle, hook, keywords) in {learning.language_name(s.language)}, never in English,
-even if the trend signals or examples below are English - translate and adapt them.
+IMPORTANT: write EVERY idea (topic, angle, hook, keywords) in {lang}{not_english},
+even if the trend signals or examples below are in another language - translate and adapt them.
 Video length: {s.min_video_seconds}-{s.max_video_seconds} seconds, vertical Shorts.
 
 WHAT WE LEARNED FROM PAST VIDEOS:
@@ -65,8 +72,7 @@ TOPICS ALREADY COVERED OR PLANNED (never repeat or paraphrase these):
 
 Top-performing format on similar channels (1-4M views per Short): a ~36-second absurd, heartwarming "official
 bureaucracy meets everyday life" story. Titles are short, past tense, and combine an ordinary person/animal/object with an
-official or unexpected outcome (e.g. "Кота официально зачислили в МЧС", "Дворник залил идеальный каток из шланга",
-"Снеговика оформили в ДПС"). Stories are clearly fictional comedy: invented
+official or unexpected outcome ({title_examples}). Stories are clearly fictional comedy: invented
 characters, no real people, brands or claims of real news.
 Another idea style that works for us: myth-busting and "hidden mechanics of everyday things" (why buildings fall, how a
 dangerous job is really done, what happens inside familiar objects); every idea needs a hook that challenges a belief.
@@ -151,16 +157,18 @@ def generate_ideas(db: Session, n: int = IDEAS_PER_RUN) -> int:
 
 # --------------------------------------------------------------------------- planning
 def reject_wrong_language(db: Session) -> int:
-    """With a Russian channel, unused ideas written without a single Cyrillic letter are rejected."""
-    if get_settings(db).language.lower() != "ru":
+    """Unused ideas in the wrong script are rejected: a Russian channel needs Cyrillic, an English one must have none."""
+    lang = get_settings(db).language.lower().split("-")[0]
+    if lang not in ("ru", "en"):
         return 0
     rows = db.execute(select(Idea).where(Idea.status == "new")).scalars().all()
-    bad = [i for i in rows if not re.search(r"[а-яА-ЯёЁ]", i.topic or "")]
+    has_cyr = lambda t: bool(re.search(r"[а-яА-ЯёЁ]", t or ""))  # noqa: E731
+    bad = [i for i in rows if (not has_cyr(i.topic) if lang == "ru" else has_cyr(i.topic))]
     for i in bad:
         i.status = "rejected"
     if bad:
         db.commit()
-        log_event("director", f"rejected {len(bad)} ideas that are not in Russian")
+        log_event("director", f"rejected {len(bad)} ideas that are not in the channel language")
     return len(bad)
 
 
