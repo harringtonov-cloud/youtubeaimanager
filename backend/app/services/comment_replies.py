@@ -45,11 +45,12 @@ _BEGGING = re.compile(r"(подпис(ывай|ы|ыв)|subscribe|лайк(ни|
 
 
 def _clean_reply(text: str, original: str) -> str:
-    t = re.sub(r"[<>#]|https?://\S+|www\.\S+", "", str(text or ""))
+    raw = str(text or "")
+    if _LINKISH.search(raw) or _BEGGING.search(raw):  # judge the model's own text: never "repair" a link away
+        return ""
+    t = re.sub(r"[<>#]", "", raw)
     t = re.sub(r"\s+", " ", t).strip().strip('"«»')
     if not t or len(re.findall(r"\w", t)) < 3:
-        return ""
-    if _LINKISH.search(t) or _BEGGING.search(t):
         return ""
     if t.lower() == " ".join(original.split()).lower():
         return ""
