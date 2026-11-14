@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..events import log_event
 from ..models import PUBLISHING, READY, Publication, Video, utcnow
-from ..settings_store import get_settings
+from ..settings_store import get_settings, language_for
 from ..stages import Deferred, PermanentError, heartbeat
 from ..storage import get_storage
 from . import first_comment, youtube
@@ -74,8 +74,8 @@ def _metadata(video: Video, s) -> tuple[dict, dict]:
         "description": (seo.get("description") or "")[:4900],
         "tags": seo.get("tags") or [],
         "categoryId": str(seo.get("category_id") or s.category_id or "27"),
-        "defaultLanguage": s.language,
-        "defaultAudioLanguage": s.language,
+        "defaultLanguage": language_for(s, video),
+        "defaultAudioLanguage": language_for(s, video),
     }
     status = {
         "privacyStatus": s.privacy_status,

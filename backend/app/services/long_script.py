@@ -62,7 +62,7 @@ def _system(s: AppSettings) -> str:
 def _outline(db: Session, s: AppSettings, parent: dict, n: int, minutes: int) -> dict:
     user = f"""We published a Short with this story. Now we make the FULL {minutes}-minute version of the same story.
 
-Language of everything you write: {learning.language_name(s.language)}
+Language of everything you write: {learning.language_name(s.long_video_language)}
 Channel niche: {s.niche}
 Short's title: {parent.get('title', '')}
 Short's narration: {parent.get('voiceover', '')}
@@ -91,7 +91,7 @@ def _chapter(db: Session, s: AppSettings, parent: dict, outline: list[dict], idx
               " End with a small cliffhanger that makes people want the next chapter.")
     user = f"""Write chapter {idx + 1} of {n} of a long story video.
 
-Language: {learning.language_name(s.language)} (voice-over AND on-screen text)
+Language: {learning.language_name(s.long_video_language)} (voice-over AND on-screen text)
 Whole story plan:
 {plan_text}
 
@@ -122,11 +122,11 @@ def write_long_script(db: Session, video: Video) -> None:
     parent = (parent_video.script or {}) if parent_video else {}
     if not parent.get("voiceover"):
         raise PermanentError("the Short this long video expands has no script")
-    target = plan(s.long_video_minutes, s.language)
+    target = plan(s.long_video_minutes, s.long_video_language)
 
     outline_data = _outline(db, s, parent, target["chapters"], s.long_video_minutes)
     raw = outline_data.get("chapters") if isinstance(outline_data, dict) else None
-    outline = [{"title": clamp(str(c.get("title", "")), 60) or f"Часть {i + 1}",
+    outline = [{"title": clamp(str(c.get("title", "")), 60) or f"Part {i + 1}",
                 "summary": clamp(str(c.get("summary", "")), 300)}
                for i, c in enumerate(raw if isinstance(raw, list) else []) if isinstance(c, dict)]
     if len(outline) < 3:
@@ -160,7 +160,7 @@ def write_long_script(db: Session, video: Video) -> None:
     title = clamp(str((outline_data or {}).get("title", "")) if isinstance(outline_data, dict) else "", 90) \
         or video.title
     script = {"title": title, "hook": scenes[0]["voiceover"][:300], "closing": scenes[-1]["voiceover"][:300],
-              "scenes": scenes, "voiceover": voiceover, "word_count": n_words, "language": s.language,
+              "scenes": scenes, "voiceover": voiceover, "word_count": n_words, "language": s.long_video_language,
               "format": "long", "chapters": chapter_marks}
     h = content_hash(script["title"], voiceover)
     if db.execute(select(Video.id).where(Video.content_hash == h, Video.id != video.id)).first():

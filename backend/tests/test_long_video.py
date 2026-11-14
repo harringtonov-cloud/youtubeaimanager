@@ -117,6 +117,36 @@ def test_write_long_script_builds_chapters(db, monkeypatch):
     assert v.script["word_count"] == 360
 
 
+def test_long_video_is_in_its_own_language(db, monkeypatch):
+    from app.settings_store import language_for
+
+    short = _short(db)
+    update_settings(db, {"long_video_minutes": 3, "language": "ru"})
+    s = AppSettings(language="ru")
+    assert s.long_video_language == "en"
+    assert language_for(s, Video(format="long")) == "en" and language_for(s, Video(format="short")) == "ru"
+    v = Video(format="long", parent_video_id=short.id)
+    db.add(v)
+    db.commit()
+    prompts = []
+    inner = _fake_llm()
+    monkeypatch.setattr(llm, "chat_json", lambda m, **k: (prompts.append(m[-1]["content"]), inner(m, **k))[1])
+    long_script.write_long_script(db, v)
+    db.refresh(v)
+    assert v.script["language"] == "en" and all("Language" in p and "English" in p for p in prompts)
+    # the Short's own (Russian) story is passed as source material, but never as the language to write in
+    assert any("Кота зачислили в МЧС" in p for p in prompts)
+
+
+def test_short_version_link_follows_the_language(db):
+    short = _short(db)
+    v = Video(format="long", parent_video_id=short.id)
+    db.add(v)
+    db.commit()
+    assert "Short version: https://youtube.com/shorts/YT" in seo._with_short_link(db, v, "Text\n\n#a", "en")
+    assert "Короткая версия: " in seo._with_short_link(db, v, "Text\n\n#a", "ru")
+
+
 def test_write_long_script_rejects_a_too_short_story(db, monkeypatch):
     short = _short(db)
     update_settings(db, {"long_video_minutes": 3, "language": "ru"})

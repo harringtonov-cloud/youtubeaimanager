@@ -48,6 +48,8 @@ class AppSettings(BaseModel):
     # --- long videos: the day after a Short is published, its story is expanded into a 16:9 video ---
     long_videos_enabled: bool = True
     long_video_minutes: int = Field(5, ge=3, le=10)
+    long_video_language: str = Field("en", max_length=10)  # long videos are in this language (Shorts: `language`)
+    long_video_voice: str = Field("", max_length=60)       # empty -> default voice of that language
 
     # --- publishing ---
     auto_publish_enabled: bool = False
@@ -94,6 +96,11 @@ class AppSettings(BaseModel):
         # the publish_times list is the single source of truth for the daily schedule
         self.videos_per_day = max(1, min(6, len(self.publish_times)))
         return self
+
+
+def language_for(s: AppSettings, video) -> str:
+    """Language of a video's narration, text and metadata: long videos have their own language."""
+    return (s.long_video_language or s.language) if getattr(video, "format", "short") == "long" else s.language
 
 
 _KEY = "app_settings"

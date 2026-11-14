@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..events import log_event
 from ..models import Video
-from ..settings_store import AppSettings, get_settings
+from ..settings_store import AppSettings, get_settings, language_for
 from ..stages import PermanentError
 from . import learning, llm
 from .text_utils import clamp, clean_tag, to_hashtag
@@ -33,7 +33,7 @@ def _prompt(db: Session, video: Video, s: AppSettings) -> list[dict]:
               "the video's real content (no misleading claims). Reply with JSON only.")
     user = f"""Create YouTube metadata for this {kind}.
 
-Language: {learning.language_name(s.language)}
+Language: {learning.language_name(language_for(s, video))}
 Niche: {s.niche}
 Topic: {idea.topic if idea else video.title}
 Keywords from research: {', '.join(idea.keywords or []) if idea else ''}
@@ -118,7 +118,7 @@ def sanitize(data: dict, s: AppSettings, fallback_title: str, long: bool = False
     }
 
 
-def _with_short_link(db: Session, video: Video, description: str) -> str:
+def _with_short_link(db: Session, video: Video, description: str, lang: str = "en") -> str:
     """A long video points to the Short it expands (cross-promotion), once the Short is on YouTube."""
     from ..models import Publication
 
@@ -129,7 +129,8 @@ def _with_short_link(db: Session, video: Video, description: str) -> str:
     if pub is None:
         return description
     head, _, tags = description.rpartition("\n\n")
-    return f"{head}\n\nКороткая версия: https://youtube.com/shorts/{pub.youtube_video_id}\n\n{tags}".strip()
+    label = "Короткая версия" if lang.lower().startswith("ru") else "Short version"
+    return f"{head}\n\n{label}: https://youtube.com/shorts/{pub.youtube_video_id}\n\n{tags}".strip()
 
 
 def generate_seo(db: Session, video: Video) -> None:
@@ -144,7 +145,7 @@ def generate_seo(db: Session, video: Video) -> None:
     long = video.format == "long"
     seo = sanitize(data, s, video.title or (video.idea.topic if video.idea else "Short"), long=long)
     if long:
-        seo["description"] = _with_short_link(db, video, seo["description"])
+        seo["description"] = _with_short_link(db, video, seo["description"], language_for(s, video))
     if not seo["thumbnail"]["text"]:
         seo["thumbnail"]["text"] = clamp(seo["title"], 22)
     video.seo = seo

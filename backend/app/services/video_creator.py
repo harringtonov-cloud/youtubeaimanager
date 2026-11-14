@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..events import log_event
 from ..models import Video
-from ..settings_store import get_settings
+from ..settings_store import get_settings, language_for
 from ..stages import PermanentError, heartbeat
 from ..storage import get_storage
 from . import ffmpeg_utils as ff
@@ -105,7 +105,9 @@ def render_video(db: Session, video: Video) -> None:
     work = Path(tempfile.mkdtemp(prefix=f"yam-render-{video.id}-"))
     try:
         # 1) voice-over (whole text at once for natural prosody) + word timings
-        voice = tts.synthesize(voiceover, s.language, work / "voice.mp3", provider=s.tts_provider, voice=s.tts_voice)
+        lang = language_for(s, video)
+        voice = tts.synthesize(voiceover, lang, work / "voice.mp3", provider=s.tts_provider,
+                               voice=(s.long_video_voice if long else s.tts_voice))
         total = voice["duration"]
         if not long and total > 178:
             raise PermanentError(f"voice-over is {total:.0f}s long - too long for a Short")
