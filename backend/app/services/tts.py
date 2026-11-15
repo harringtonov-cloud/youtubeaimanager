@@ -21,7 +21,7 @@ from .subtitles import attach_punctuation, estimate_word_timings, timings_from_s
 log = get_logger("tts")
 
 EDGE_VOICES = {
-    "en": "en-US-AndrewMultilingualNeural", "ru": "ru-RU-DmitryNeural", "uz": "uz-UZ-SardorNeural",
+    "en": "en-US-GuyNeural", "ru": "ru-RU-DmitryNeural", "uz": "uz-UZ-SardorNeural",
     "es": "es-ES-AlvaroNeural", "de": "de-DE-ConradNeural", "fr": "fr-FR-HenriNeural",
     "pt": "pt-BR-AntonioNeural", "it": "it-IT-DiegoNeural", "tr": "tr-TR-AhmetNeural",
     "ar": "ar-SA-HamedNeural", "hi": "hi-IN-MadhurNeural", "id": "id-ID-ArdiNeural",
@@ -29,6 +29,8 @@ EDGE_VOICES = {
     "uk": "uk-UA-OstapNeural", "pl": "pl-PL-MarekNeural", "kk": "kk-KZ-DauletNeural",
 }
 EDGE_RATE = "+6%"
+# if a voice is rejected ("No audio was received" = unknown / unavailable voice) try these classic en-US voices
+EDGE_FALLBACKS = ["en-US-GuyNeural", "en-US-AndrewNeural", "en-US-ChristopherNeural", "en-US-AriaNeural"]
 
 
 def default_voice(language: str, provider: str) -> str:
@@ -60,8 +62,22 @@ async def _edge(text: str, voice: str, out: Path, sentences: Optional[list] = No
 
 def _synth_edge(text: str, voice: str, out: Path, sentences: Optional[list] = None) -> list[dict[str, Any]]:
     last: Optional[Exception] = None
+    chain = [voice] + [x for x in EDGE_FALLBACKS if x != voice and voice.lower().startswith("en-")]
+    if len(chain) > 1:
+        for v in chain:
+            try:
+                return _synth_edge_one(text, v, out, sentences)
+            except Exception as e:
+                last = e
+                log.warning("edge voice %s failed, trying the next one: %s", v, e)
+        raise RuntimeError(f"Edge TTS failed: {last}")
+    return _synth_edge_one(text, voice, out, sentences)
+
+
+def _synth_edge_one(text: str, voice: str, out: Path, sentences: Optional[list] = None) -> list[dict[str, Any]]:
+    last: Optional[Exception] = None
     limit = 120 if len(text) < 2500 else 420  # a 5-minute narration streams for a while
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             if sentences is not None:
                 sentences.clear()
