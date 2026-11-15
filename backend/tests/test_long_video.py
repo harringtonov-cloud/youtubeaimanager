@@ -354,3 +354,14 @@ def test_redo_refuses_published_videos(db, client, queued):
     db.commit()
     assert client.post(f"/api/videos/{vid}/redo").status_code == 400
     assert client.post("/api/videos/9999/redo").status_code == 404
+
+
+def test_subscribe_link_goes_above_the_hashtags(db):
+    from app.models import YouTubeAccount
+
+    assert seo._with_subscribe_link(db, "Text\n\n#a", "en") == "Text\n\n#a"  # no channel yet
+    db.add(YouTubeAccount(channel_id="UC123", refresh_token_enc="x"))
+    db.commit()
+    out = seo._with_subscribe_link(db, "Text\n\n#a #Shorts", "en")
+    assert out == "Text\n\nSubscribe for more: https://youtube.com/channel/UC123?sub_confirmation=1\n\n#a #Shorts"
+    assert seo._with_subscribe_link(db, out, "en") == out

@@ -133,6 +133,18 @@ def _with_short_link(db: Session, video: Video, description: str, lang: str = "e
     return f"{head}\n\n{label}: https://youtube.com/shorts/{pub.youtube_video_id}\n\n{tags}".strip()
 
 
+def _with_subscribe_link(db: Session, description: str, lang: str = "en") -> str:
+    """One-tap subscribe link (opens the 'Subscribe?' confirmation) above the hashtags. Skipped if no channel yet."""
+    from ..models import YouTubeAccount
+
+    ch = db.execute(select(YouTubeAccount.channel_id)).scalars().first()
+    if not ch or "sub_confirmation" in description:
+        return description
+    head, _, tags = description.rpartition("\n\n")
+    label = "Подписаться" if lang.lower().startswith("ru") else "Subscribe for more"
+    return f"{head}\n\n{label}: https://youtube.com/channel/{ch}?sub_confirmation=1\n\n{tags}".strip()
+
+
 def generate_seo(db: Session, video: Video) -> None:
     if not llm.is_configured():
         raise PermanentError("LLM_API_KEY is not configured")
@@ -146,6 +158,7 @@ def generate_seo(db: Session, video: Video) -> None:
     seo = sanitize(data, s, video.title or (video.idea.topic if video.idea else "Short"), long=long)
     if long:
         seo["description"] = _with_short_link(db, video, seo["description"], language_for(s, video))
+    seo["description"] = _with_subscribe_link(db, seo["description"], language_for(s, video))
     if not seo["thumbnail"]["text"]:
         seo["thumbnail"]["text"] = clamp(seo["title"], 22)
     video.seo = seo
