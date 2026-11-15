@@ -17,6 +17,7 @@ from ..storage import get_storage
 from . import ffmpeg_utils as ff
 from . import images, stock, subtitles, tts
 
+MAX_FILE_BYTES = 44 * 1024 * 1024  # the free Supabase storage refuses files over 50 MB (EntityTooLarge)
 LONG_SIZE = (1920, 1080)   # long videos are 16:9
 LONG_SHOT = 4.0            # longest single shot of one picture in a long video
 MAX_LONG_SECONDS = 15 * 60
@@ -220,15 +221,25 @@ def render_video(db: Session, video: Video) -> None:
             except Exception as e:
                 sfx = None
                 log_event("video", f"sound effects skipped: {e}", level="WARNING", video_id=video.id)
-        try:
-            ff.final_mix(base, voice["path"], ass, out, total_video, music=music, music_volume=s.music_volume,
-                         sfx=sfx, sfx_volume=s.sfx_volume * (0.6 if long else 1.0))
-        except ff.FFmpegError as e:
-            if not music and not sfx:
-                raise
-            log_event("video", f"mix with music/effects failed, rendering voice-only: {e}", level="WARNING",
+        cap = MAX_FILE_BYTES
+        for _attempt in range(3):  # the bitrate is capped by the duration; if the file is still too big, squeeze more
+            try:
+                ff.final_mix(base, voice["path"], ass, out, total_video, music=music, music_volume=s.music_volume,
+                             sfx=sfx, sfx_volume=s.sfx_volume * (0.6 if long else 1.0), max_bytes=cap)
+            except ff.FFmpegError as e:
+                if not music and not sfx:
+                    raise
+                log_event("video", f"mix with music/effects failed, rendering voice-only: {e}", level="WARNING",
+                          video_id=video.id)
+                music = sfx = None
+                ff.final_mix(base, voice["path"], ass, out, total_video, max_bytes=cap)
+            if out.stat().st_size <= MAX_FILE_BYTES:
+                break
+            log_event("video", f"video is {out.stat().st_size // 1048576} MB, re-encoding smaller", level="WARNING",
                       video_id=video.id)
-            ff.final_mix(base, voice["path"], ass, out, total_video)
+            cap = int(cap * 0.7)
+        else:
+            raise RuntimeError(f"video is still over {MAX_FILE_BYTES // 1048576} MB after re-encoding")
         info = ff.probe(out)
         if not (info["has_video"] and info["has_audio"]) or (info["width"], info["height"]) != size:
             raise RuntimeError(f"render verification failed: {info}")

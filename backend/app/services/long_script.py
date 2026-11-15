@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..events import log_event
-from ..models import Video
+from ..models import Idea, Video
 from ..settings_store import AppSettings, get_settings
 from ..stages import PermanentError
 from . import learning, llm
@@ -59,17 +59,39 @@ def _system(s: AppSettings) -> str:
             f"Avoid entirely: {s.forbidden_topics}. Reply with JSON only.")
 
 
+def _source_texts(parent: dict) -> dict[str, str]:
+    """Wording that depends on whether the long video expands a published Short or starts from a bare idea."""
+    if parent.get("from_short", True):
+        return {"intro": "We published a Short with this story. Now we make the FULL {minutes}-minute version of the same story.",
+                "label": "Short's narration", "title": "Short's title",
+                "plan": "Keep the same characters, the same absurd premise and the same ending idea, but develop it: "
+                        "more characters, funny details, dialogue, escalation, an unexpected twist, a warm finale.",
+                "genre": "It is clearly fictional comedy: invented characters only. Chapter 1 opens with the hook of the Short.",
+                "chapter_source": "The Short we already published (the same story, short version)",
+                "chapter_genre": "Fictional comedy, invented characters, no real people."}
+    return {"intro": "Make a {minutes}-minute video about this idea (nothing was published about it yet).",
+            "label": "Idea (angle and hook)", "title": "Idea",
+            "plan": "Develop it into a complete story or explainer: a strong opening, escalation, concrete details, "
+                    "an unexpected turn and a satisfying finale.",
+            "genre": "If the idea is an absurd story, it is clearly fictional comedy with invented characters. If it is a "
+                     "myth-busting or 'how it really works' topic, make an engaging explainer with accurate, well-known "
+                     "facts and never invent statistics, studies or claims. Chapter 1 opens with the hook.",
+            "chapter_source": "The idea this video is about",
+            "chapter_genre": "Absurd stories: fictional comedy with invented characters. Explainers: accurate facts only. "
+                             "No real people."}
+
+
 def _outline(db: Session, s: AppSettings, parent: dict, n: int, minutes: int) -> dict:
-    user = f"""We published a Short with this story. Now we make the FULL {minutes}-minute version of the same story.
+    t = _source_texts(parent)
+    user = f"""{t['intro'].format(minutes=minutes)}
 
 Language of everything you write: {learning.language_name(s.long_video_language)}
 Channel niche: {s.niche}
-Short's title: {parent.get('title', '')}
-Short's narration: {parent.get('voiceover', '')}
+{t['title']}: {parent.get('title', '')}
+{t['label']}: {parent.get('voiceover', '')}
 
-Plan the long video as exactly {n} chapters. Keep the same characters, the same absurd premise and the same ending
-idea, but develop it: more characters, funny details, dialogue, escalation, an unexpected twist, a warm finale.
-It is clearly fictional comedy: invented characters only. Chapter 1 opens with the hook of the Short.
+Plan the long video as exactly {n} chapters. {t['plan']}
+{t['genre']}
 
 Return JSON: {{"title": "video title, max 70 chars, same style as the Short's title",
  "chapters": [{{"title": "chapter name, 2-5 words", "summary": "2 sentences: what happens in this chapter"}}]}}"""
@@ -79,6 +101,7 @@ Return JSON: {{"title": "video title, max 70 chars, same style as the Short's ti
 
 def _chapter(db: Session, s: AppSettings, parent: dict, outline: list[dict], idx: int, previous: str,
              target: dict[str, int], feedback: str) -> list[dict[str, str]]:
+    t = _source_texts(parent)
     n = len(outline)
     plan_text = "\n".join(f"{i + 1}. {c['title']}: {c['summary']}" for i, c in enumerate(outline))
     cur = outline[idx]
@@ -95,14 +118,14 @@ Language: {learning.language_name(s.long_video_language)} (voice-over AND on-scr
 Whole story plan:
 {plan_text}
 
-The Short we already published (the same story, short version): {parent.get('voiceover', '')[:900]}
+{t['chapter_source']}: {parent.get('voiceover', '')[:900]}
 
 This chapter: "{cur['title']}" - {cur['summary']}
 The previous chapter ended with: {previous or '(this is the first chapter)'}
 
 {rules}
 Length: about {target['chapter_words']} words of narration in total, split into about {target['scenes_per_chapter']} scenes of
-roughly {SCENE_WORDS} words (2-3 sentences) each. Fictional comedy, invented characters, no real people.
+roughly {SCENE_WORDS} words (2-3 sentences) each. {t['chapter_genre']}
 {('FIX THIS FROM THE PREVIOUS ATTEMPT: ' + feedback) if feedback else ''}
 
 Return JSON: {{"scenes": [{{"voiceover": "what the narrator says in this scene",
@@ -119,9 +142,14 @@ def write_long_script(db: Session, video: Video) -> None:
     if not llm.is_configured():
         raise PermanentError("LLM_API_KEY is not configured")
     parent_video = db.get(Video, video.parent_video_id) if video.parent_video_id else None
-    parent = (parent_video.script or {}) if parent_video else {}
+    parent = dict((parent_video.script or {}) if parent_video else {})
+    parent["from_short"] = True
     if not parent.get("voiceover"):
-        raise PermanentError("the Short this long video expands has no script")
+        idea = db.get(Idea, video.source_idea_id) if video.source_idea_id else None
+        if idea is None:
+            raise PermanentError("this long video has neither a Short to expand nor an idea to start from")
+        parent = {"title": idea.topic, "voiceover": " ".join(x for x in (idea.hook, idea.angle) if x),
+                  "from_short": False}
     target = plan(s.long_video_minutes, s.long_video_language)
 
     outline_data = _outline(db, s, parent, target["chapters"], s.long_video_minutes)

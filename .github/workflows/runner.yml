@@ -33,6 +33,7 @@ jobs:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || 'https://openrouter.ai/api/v1' }}
       LLM_MODEL: ${{ secrets.LLM_MODEL || 'openai/gpt-4o-mini' }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}  # optional: YouTube trends
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}

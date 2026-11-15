@@ -212,3 +212,117 @@ def test_learning_uses_shorts_only(db):
         db.add(AnalyticsSnapshot(publication_id=p.id, views=views, likes=1, comments=0, avg_view_percentage=ret))
     db.commit()
     assert [t["title"] for t in learning.top_performers(db, n=5)] == ["short900", "short100"]
+
+
+# ------------------------------------------------------------------ buttons: make a Short / make a long video from an idea
+@pytest.fixture
+def queued(monkeypatch):
+    from app.workers import tasks
+
+    q = []
+    monkeypatch.setattr(tasks, "enqueue_stage", lambda vid, stage, countdown=0: q.append((vid, stage)))
+    return q
+
+
+def _idea(db, topic="Why honey never spoils", status="approved"):
+    from app.models import Idea
+    from app.services.text_utils import fingerprint
+
+    i = Idea(topic=topic, angle="Tombs prove it", hook="This food survived 3000 years", status=status,
+             fingerprint=fingerprint(topic))
+    db.add(i)
+    db.commit()
+    return i
+
+
+def test_make_long_video_from_an_idea(db, client, queued):
+    idea = _idea(db)
+    r = client.post(f"/api/videos/from-idea/{idea.id}", json={"format": "long"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["format"] == "long"
+    v = db.get(Video, body["id"])
+    db.refresh(idea)
+    assert v.source_idea_id == idea.id and v.idea_id is None and v.approved and v.parent_video_id is None
+    assert timedelta(minutes=30) < v.scheduled_at - utcnow() < timedelta(minutes=50) and idea.status == "used"
+    assert queued == [(v.id, "script")]
+    assert client.post(f"/api/videos/from-idea/{idea.id}", json={"format": "long"}).status_code == 409
+    items = client.get("/api/ideas").json()["items"]
+    assert items[0]["long_video_id"] == v.id and items[0]["video_id"] is None
+
+
+def test_the_same_idea_can_also_become_a_short(db, client, queued):
+    idea = _idea(db)
+    assert client.post(f"/api/videos/from-idea/{idea.id}", json={"format": "long"}).status_code == 200
+    r = client.post(f"/api/videos/from-idea/{idea.id}")  # no body = a Short (the old behaviour)
+    assert r.status_code == 200 and r.json()["format"] == "short"
+    assert db.get(Video, r.json()["id"]).approved
+    assert client.post(f"/api/videos/from-idea/{idea.id}", json={"format": "short"}).status_code == 409
+    item = client.get("/api/ideas").json()["items"][0]
+    assert item["video_id"] and item["long_video_id"]
+
+
+def test_make_video_validates_input(db, client, queued):
+    idea = _idea(db, status="rejected")
+    assert client.post(f"/api/videos/from-idea/{idea.id}", json={"format": "long"}).status_code == 400
+    ok = _idea(db, "Another topic about octopuses")
+    assert client.post(f"/api/videos/from-idea/{ok.id}", json={"format": "movie"}).status_code == 422
+    assert client.post("/api/videos/from-idea/9999", json={"format": "long"}).status_code == 404
+    assert queued == []
+
+
+def test_long_script_can_start_from_an_idea(db, monkeypatch):
+    idea = _idea(db)
+    update_settings(db, {"long_video_minutes": 3})
+    v = Video(format="long", source_idea_id=idea.id, title=idea.topic)
+    db.add(v)
+    db.commit()
+    prompts = []
+    inner = _fake_llm()
+    monkeypatch.setattr(llm, "chat_json", lambda m, **k: (prompts.append(m[-1]["content"]), inner(m, **k))[1])
+    long_script.write_long_script(db, v)
+    db.refresh(v)
+    assert len(v.script["scenes"]) == 12 and v.script["format"] == "long"
+    assert "about this idea" in prompts[0] and "This food survived 3000 years" in prompts[0]
+    assert "Short we already published" not in prompts[1] and "accurate facts" in prompts[1]
+
+
+def test_auto_planner_skips_a_short_whose_idea_already_has_a_long_video(db):
+    from app.models import Idea
+
+    idea = _idea(db, "Cat joined the fire brigade")
+    short = _short(db, "Cat joined the fire brigade")
+    short.idea_id = idea.id
+    db.add(Video(format="long", source_idea_id=idea.id, title="made by hand", created_at=utcnow() - timedelta(hours=30)))
+    db.commit()
+    assert long_video.plan_long_videos(db) == []  # not blocked by the one-a-day rule: the idea is simply taken
+    assert db.query(Video).filter(Video.format == "long").count() == 1 and Idea
+
+
+# ------------------------------------------------------------------ the 50 MB storage limit
+def test_rate_cap_for_a_five_minute_video_stays_under_the_limit():
+    from app.services import ffmpeg_utils as ff
+
+    args = ff.rate_cap_args(300, 44 * 1024 * 1024, 96_000)
+    maxrate = int(args[args.index("-maxrate") + 1])
+    assert maxrate * 300 / 8 + 96_000 * 300 / 8 < 44 * 1024 * 1024  # video + audio fit
+    assert 800_000 < maxrate < 1_200_000
+
+
+def test_final_mix_respects_max_bytes(tmp_path):
+    import shutil
+    import subprocess
+
+    from app.services import ffmpeg_utils as ff
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg is required")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=1280x720:r=30:d=8",
+                    "-vf", "noise=alls=40:allf=t", "-pix_fmt", "yuv420p", str(tmp_path / "v.mp4")], check=True)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=180:duration=8",
+                    str(tmp_path / "a.wav")], check=True)
+    limit = 600_000
+    ff.final_mix(tmp_path / "v.mp4", tmp_path / "a.wav", None, tmp_path / "o.mp4", 8.0, max_bytes=limit)
+    assert (tmp_path / "o.mp4").stat().st_size <= limit * 1.1
+    ff.final_mix(tmp_path / "v.mp4", tmp_path / "a.wav", None, tmp_path / "free.mp4", 8.0)
+    assert (tmp_path / "free.mp4").stat().st_size > limit * 3  # without the cap the same video is far larger

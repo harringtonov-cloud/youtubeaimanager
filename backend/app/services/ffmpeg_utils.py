@@ -246,9 +246,15 @@ def shot_count(duration: float, max_shot: float = 2.8, max_shots: int = 3) -> in
     return min(max(n, 1), max_shots)
 
 
+def rate_cap_args(total: float, max_bytes: int, audio_bps: int = 128_000) -> list[str]:
+    """Encoder options that keep a `total`-second file under `max_bytes` (the storage has a per-file limit)."""
+    video_bps = max(250_000, int(max_bytes * 8 * 0.92 / max(total, 1.0)) - audio_bps)
+    return ["-maxrate", str(video_bps), "-bufsize", str(video_bps * 2)]
+
+
 def final_mix(video: str | Path, audio: str | Path, ass: Optional[str | Path], dst: str | Path,
               total: float, music: Optional[str | Path] = None, music_volume: float = 0.12,
-              sfx: Optional[str | Path] = None, sfx_volume: float = 0.5) -> None:
+              sfx: Optional[str | Path] = None, sfx_volume: float = 0.5, max_bytes: Optional[int] = None) -> None:
     """Burn captions, mix the voice-over (loudness-normalised), optional ducked music and cut sound effects."""
     vf = ["format=yuv420p"]
     if ass:
@@ -281,7 +287,9 @@ def final_mix(video: str | Path, audio: str | Path, ass: Optional[str | Path], d
         fc.append(f"{''.join(layers)}amix=inputs={len(layers)}:normalize=0:duration=first,"
                   "alimiter=limit=0.95:level=0[a]")
         cmd += ["-filter_complex", ";".join(fc), "-map", "[v]", "-map", "[a]"]
-    cmd += [*_VENC, "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2", "-t", f"{total:.3f}",
+    abps = 96_000 if max_bytes else 160_000
+    cap = rate_cap_args(total, max_bytes, abps) if max_bytes else []
+    cmd += [*_VENC, *cap, "-c:a", "aac", "-b:a", str(abps), "-ar", "44100", "-ac", "2", "-t", f"{total:.3f}",
             "-movflags", "+faststart", str(dst)]
     run(cmd, 1200)
 

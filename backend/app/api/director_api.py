@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
 from ..events import log_event
-from ..models import Idea, Insight, TopicPerformance, utcnow
+from ..models import CANCELLED, Idea, Insight, TopicPerformance, Video, utcnow
 from ..security import require_admin
 from ..services.text_utils import fingerprint
 from .common import idea_dict, iso
@@ -25,7 +25,11 @@ def list_ideas(status: Optional[str] = None, limit: int = Query(60, ge=1, le=200
     total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
     rows = db.execute(stmt.order_by(Idea.score.desc(), Idea.created_at.desc()).limit(limit).offset(offset)
                       ).scalars().all()
-    return {"total": total, "items": [idea_dict(i) for i in rows]}
+    longs = dict(db.execute(
+        select(Video.source_idea_id, Video.id).where(Video.format == "long", Video.status != CANCELLED,
+                                                      Video.source_idea_id.in_([i.id for i in rows]))
+    ).all()) if rows else {}
+    return {"total": total, "items": [{**idea_dict(i), "long_video_id": longs.get(i.id)} for i in rows]}
 
 
 @router.post("/ideas")

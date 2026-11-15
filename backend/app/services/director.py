@@ -222,6 +222,22 @@ def create_video_for_idea(db: Session, idea: Idea, scheduled_at: Optional[dateti
     return video
 
 
+LONG_FROM_IDEA_LEAD = timedelta(minutes=40)  # a long video takes 15-25 minutes to make
+
+
+def create_long_video_for_idea(db: Session, idea: Idea) -> Video:
+    """A 16:9 video made straight from an idea (the owner pressed the button). It does not use the idea's Short."""
+    now = utcnow()
+    video = Video(format="long", source_idea_id=idea.id, title=idea.topic[:300], approved=True,
+                  scheduled_at=now + LONG_FROM_IDEA_LEAD)
+    if idea.status != "used":
+        idea.status, idea.used_at = "used", now
+    db.add(video)
+    db.commit()
+    log_event("director", f"planned a long video for '{idea.topic}'", video_id=video.id)
+    return video
+
+
 def plan_content(db: Session) -> list[int]:
     """Fill every free slot in the planning horizon. Returns ids of newly created videos."""
     if not llm.is_configured():

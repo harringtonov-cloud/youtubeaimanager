@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -203,19 +203,34 @@ def reschedule(video_id: int, body: dict = Body(...), db: Session = Depends(get_
 
 
 @router.post("/videos/from-idea/{idea_id}")
-def video_from_idea(idea_id: int, db: Session = Depends(get_db)):
-    """Create a video immediately from a chosen idea (next free slot) and start production."""
+def video_from_idea(idea_id: int, body: Optional[dict[str, Any]] = Body(None), db: Session = Depends(get_db)):
+    """Make a video from a chosen idea and start production.
+
+    {"format": "short"}  (default) - a vertical Short in the next free publishing slot
+    {"format": "long"}             - a 16:9 video of several minutes, ready to publish in about 40 minutes
+    The owner pressed the button, so the video is approved. An idea can have one Short and one long video."""
     from ..services import director
     from ..workers.tasks import enqueue_stage
 
+    fmt = str((body or {}).get("format") or "short").lower()
+    if fmt not in ("short", "long"):
+        raise HTTPException(422, "format must be short | long")
     idea = db.get(Idea, idea_id)
     if idea is None:
         raise HTTPException(404, "idea not found")
-    if idea.video is not None:
-        raise HTTPException(409, "a video already exists for this idea")
     if idea.status == "rejected":
         raise HTTPException(400, "idea was rejected")
-    v = director.create_video_for_idea(db, idea)
+    if fmt == "short":
+        if idea.video is not None:
+            raise HTTPException(409, "a Short already exists for this idea")
+        v = director.create_video_for_idea(db, idea)
+        v.approved = True
+        db.commit()
+    else:
+        if db.execute(select(Video.id).where(Video.source_idea_id == idea.id, Video.format == "long",
+                                             Video.status != CANCELLED)).first():
+            raise HTTPException(409, "a long video already exists for this idea")
+        v = director.create_long_video_for_idea(db, idea)
     enqueue_stage(v.id, "script")
     return video_dict(_get_video(db, v.id))
 

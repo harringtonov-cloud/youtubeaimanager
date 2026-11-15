@@ -111,14 +111,17 @@ export default function DirectorPage() {
                   {i.category && <Badge>{i.category}</Badge>}
                   {i.hook_style && <Badge>{i.hook_style}</Badge>}
                   <Badge tone="info">оценка {i.score}</Badge>
+                  {i.video_id && <Badge tone="ok">Shorts #{i.video_id}</Badge>}
+                  {i.long_video_id && <Badge tone="ok">видео #{i.long_video_id}</Badge>}
                   <span className="text-xs text-muted">{i.source} · {ago(i.created_at)}</span>
                 </div>
               </div>
-              {i.status !== "used" && (
-                <div className="flex shrink-0 gap-2">
-                  {i.status !== "approved" && <Button small onClick={() => run(`a${i.id}`, () => api(`/api/ideas/${i.id}`, { method: "PATCH", body: { status: "approved" } }).then(reloadAll))} busy={busy === `a${i.id}`}>Одобрить</Button>}
-                  {i.status !== "rejected" && <Button small variant="danger" onClick={() => run(`r${i.id}`, () => api(`/api/ideas/${i.id}`, { method: "PATCH", body: { status: "rejected" } }).then(reloadAll))} busy={busy === `r${i.id}`}>Отклонить</Button>}
-                  {i.status !== "rejected" && !i.video_id && <Button small variant="primary" busy={busy === `v${i.id}`} onClick={() => run(`v${i.id}`, () => api(`/api/videos/from-idea/${i.id}`, { method: "POST" }).then(reloadAll), "Производство видео запущено")}>Создать видео</Button>}
+              {(i.status !== "used" || !i.video_id || !i.long_video_id) && i.status !== "rejected" && (
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {i.status !== "used" && i.status !== "approved" && <Button small onClick={() => run(`a${i.id}`, () => api(`/api/ideas/${i.id}`, { method: "PATCH", body: { status: "approved" } }).then(reloadAll))} busy={busy === `a${i.id}`}>Одобрить</Button>}
+                  {i.status !== "used" && <Button small variant="danger" onClick={() => run(`r${i.id}`, () => api(`/api/ideas/${i.id}`, { method: "PATCH", body: { status: "rejected" } }).then(reloadAll))} busy={busy === `r${i.id}`}>Отклонить</Button>}
+                  {!i.video_id && <Button small variant="primary" busy={busy === `s${i.id}`} onClick={() => run(`s${i.id}`, () => api(`/api/videos/from-idea/${i.id}`, { method: "POST", body: { format: "short" } }).then(reloadAll), "Shorts поставлен в производство: выйдет в ближайшее свободное время")}>Сделать Shorts</Button>}
+                  {!i.long_video_id && <Button small variant="primary" busy={busy === `l${i.id}`} onClick={() => run(`l${i.id}`, () => api(`/api/videos/from-idea/${i.id}`, { method: "POST", body: { format: "long" } }).then(reloadAll), "Длинное видео поставлено в производство: 15–25 минут, затем выйдет на YouTube")}>Сделать видео</Button>}
                 </div>
               )}
             </li>

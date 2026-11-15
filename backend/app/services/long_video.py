@@ -37,9 +37,13 @@ def _best_candidate(db: Session, now) -> Optional[Video]:
     ).all()
     taken = {pid for (pid,) in db.execute(select(Video.parent_video_id).where(Video.format == "long",
                                                                                Video.parent_video_id.is_not(None))).all()}
+    idea_has_long = {i for (i,) in db.execute(select(Video.source_idea_id).where(
+        Video.format == "long", Video.source_idea_id.is_not(None), Video.status != CANCELLED)).all()}
     best: tuple[int, Video] | None = None
     for v, pub in rows:
-        if v.id in taken or not isinstance(v.script, dict) or not v.script.get("voiceover"):
+        if v.id in taken or v.idea_id in idea_has_long:  # already expanded (or its idea got a long video by hand)
+            continue
+        if not isinstance(v.script, dict) or not v.script.get("voiceover"):
             continue
         views = db.execute(select(func.max(AnalyticsSnapshot.views)).where(AnalyticsSnapshot.publication_id == pub.id)
                            ).scalar() or 0
