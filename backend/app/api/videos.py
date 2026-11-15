@@ -14,6 +14,7 @@ from ..models import (
     CANCELLED,
     FAILED,
     PUBLISHED,
+    PLANNED,
     PUBLISHING,
     READY,
     Idea,
@@ -84,6 +85,49 @@ def retry_video(video_id: int, db: Session = Depends(get_db)):
     enqueue_stage(v.id, stage)
     log_event("api", f"retry requested for stage '{stage}'", video_id=v.id)
     return {"ok": True, "stage": stage}
+
+
+@router.post("/videos/{video_id}/redo")
+def redo_video(video_id: int, db: Session = Depends(get_db)):
+    """Make the video again from scratch (script, SEO, render, thumbnail). Not for published / uploading videos."""
+    from datetime import timedelta
+
+    from ..workers.tasks import enqueue_stage
+
+    v = _get_video(db, video_id)
+    if v.status in (PUBLISHED, PUBLISHING) or (v.publication is not None and v.publication.youtube_video_id):
+        raise HTTPException(400, "this video is already on YouTube; it cannot be made again")
+    if v.processing_stage and v.locked_at and (utcnow() - v.locked_at) < timedelta(minutes=10):
+        raise HTTPException(409, "this video is being processed right now; try again in a few minutes")
+    keys = {k for k in (v.video_key, v.subtitle_key, v.thumbnail_key, f"videos/{v.id}/frame.jpg") if k}
+    v.status = PLANNED
+    v.script = None
+    v.seo = None
+    v.assets = None
+    v.content_hash = None
+    v.video_key = v.subtitle_key = v.thumbnail_key = None
+    v.duration_seconds = None
+    v.error = None
+    v.failed_stage = None
+    v.attempts = 0
+    v.processing_stage = None
+    v.locked_at = None
+    v.approved = True
+    now = utcnow()
+    if v.scheduled_at is None or v.scheduled_at < now + timedelta(minutes=30):
+        v.scheduled_at = now + timedelta(minutes=40 if v.format == "long" else 30)
+    if v.publication is not None:  # a failed upload attempt without a YouTube id: start clean
+        db.delete(v.publication)
+    db.commit()
+    storage = get_storage()
+    for k in keys:
+        try:
+            storage.delete(k)
+        except Exception:
+            pass
+    enqueue_stage(v.id, "script")
+    log_event("api", "video remade from scratch by owner", video_id=v.id)
+    return {"ok": True}
 
 
 @router.post("/videos/{video_id}/cancel")

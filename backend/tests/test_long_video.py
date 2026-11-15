@@ -326,3 +326,31 @@ def test_final_mix_respects_max_bytes(tmp_path):
     assert (tmp_path / "o.mp4").stat().st_size <= limit * 1.1
     ff.final_mix(tmp_path / "v.mp4", tmp_path / "a.wav", None, tmp_path / "free.mp4", 8.0)
     assert (tmp_path / "free.mp4").stat().st_size > limit * 3  # without the cap the same video is far larger
+
+
+# ------------------------------------------------------------------ "Сделать заново"
+def test_redo_resets_a_failed_video_and_restarts_it(db, client, queued):
+    idea = _idea(db)
+    vid = client.post(f"/api/videos/from-idea/{idea.id}", json={"format": "long"}).json()["id"]
+    queued.clear()
+    v = db.get(Video, vid)
+    v.status, v.failed_stage, v.error, v.attempts = "failed", "render", "boom", 3
+    v.script, v.seo, v.video_key, v.content_hash = {"scenes": []}, {"title": "x"}, "media/videos/1/video.mp4", "abc"
+    db.commit()
+    r = client.post(f"/api/videos/{vid}/redo")
+    assert r.status_code == 200, r.text
+    db.refresh(v)
+    assert v.status == "planned" and v.script is None and v.seo is None and v.video_key is None
+    assert v.error is None and v.failed_stage is None and v.attempts == 0 and v.content_hash is None
+    assert v.approved and v.format == "long" and v.source_idea_id == idea.id
+    assert queued == [(vid, "script")]
+
+
+def test_redo_refuses_published_videos(db, client, queued):
+    idea = _idea(db)
+    vid = client.post(f"/api/videos/from-idea/{idea.id}", json={"format": "long"}).json()["id"]
+    v = db.get(Video, vid)
+    v.status = "published"
+    db.commit()
+    assert client.post(f"/api/videos/{vid}/redo").status_code == 400
+    assert client.post("/api/videos/9999/redo").status_code == 404
