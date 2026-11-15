@@ -196,7 +196,9 @@ def render_video(db: Session, video: Video) -> None:
         chunks = subtitles.chunk_words(voice["words"], *((7, 42) if long else ()))
         ass = work / "captions.ass"
         ass.write_text(subtitles.to_ass(chunks, emphasis_events(scenes, durs), width=size[0], height=size[1],
-                                        style=s.background_style), "utf-8")
+                                        style=s.background_style, total=total_video,
+                                        cta="ЛАЙК  •  ПОДПИШИСЬ" if language_for(s, video).lower().startswith("ru")
+                                        else "LIKE  •  SUBSCRIBE"), "utf-8")
         srt = work / "captions.srt"
         srt.write_text(subtitles.to_srt(chunks), "utf-8")
 

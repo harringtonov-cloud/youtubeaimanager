@@ -143,7 +143,8 @@ _PALETTES = {  # primary text, highlight (ASS &HBBGGRR&)
 
 
 def to_ass(chunks: list[list[dict[str, Any]]], emphasis: list[dict[str, Any]] | None = None,
-           width: int = 1080, height: int = 1920, font: str = "DejaVu Sans", style: str = "dark-blue") -> str:
+           width: int = 1080, height: int = 1920, font: str = "DejaVu Sans", style: str = "dark-blue",
+           cta: str = "", total: float = 0.0) -> str:
     """Word-highlight captions (active word coloured) + optional emphasis texts per scene."""
     primary, highlight = _PALETTES.get(style, _PALETTES["dark-blue"])
     wide = width > height  # 16:9: smaller text sitting lower, so it does not cover the picture
@@ -161,6 +162,7 @@ ScaledBorderAndShadow: yes
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Cap,{font},{font_size},{primary},{primary},&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,{4 if wide else 7},2,2,60,60,{cap_margin},1
 Style: Emph,{font},{int(font_size * 1.15)},{highlight},{highlight},&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,{5 if wide else 8},3,8,60,60,{emph_margin},1
+Style: Cta,{font},{int(font_size * 0.8)},&H00FFFFFF,&H00FFFFFF,&H003C14DC,&H96000000,-1,0,0,0,100,100,0,0,3,10,0,2,60,60,{int(height * 0.06) if wide else int(height * 0.1)},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -184,4 +186,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             continue
         ev.append(f"Dialogue: 1,{_ass_time(e['start'])},{_ass_time(e['end'])},Emph,,0,0,0,,"
                   f"{{\\fad(200,200)\\t(0,250,\\fscx115\\fscy115)\\t(250,500,\\fscx100\\fscy100)}}{txt}")
+    if cta and total > 8:  # like / subscribe nudge: once about a third in, once at the very end
+        for a in (total * 0.33, max(total - 3.2, total * 0.33 + 4)):
+            ev.append(f"Dialogue: 2,{_ass_time(a)},{_ass_time(min(a + 2.8, total))},Cta,,0,0,0,,"
+                      f"{{\\fad(250,250)}}{_esc(cta)}")
     return header + "\n".join(ev) + "\n"

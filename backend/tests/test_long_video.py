@@ -365,3 +365,13 @@ def test_subscribe_link_goes_above_the_hashtags(db):
     out = seo._with_subscribe_link(db, "Text\n\n#a #Shorts", "en")
     assert out == "Text\n\nSubscribe for more: https://youtube.com/channel/UC123?sub_confirmation=1\n\n#a #Shorts"
     assert seo._with_subscribe_link(db, out, "en") == out
+
+
+def test_captions_get_a_like_subscribe_banner_twice():
+    from app.services import subtitles
+
+    chunks = [[{"text": "Hi", "start": 0.0, "end": 0.4}]]
+    ass = subtitles.to_ass(chunks, cta="LIKE  •  SUBSCRIBE", total=30.0)
+    assert ass.count(",Cta,,") == 2 and "LIKE  •  SUBSCRIBE" in ass and "Style: Cta," in ass
+    assert ",Cta,," not in subtitles.to_ass(chunks, total=30.0)
+    assert ",Cta,," not in subtitles.to_ass(chunks, cta="X", total=5.0)  # too short for a nudge
