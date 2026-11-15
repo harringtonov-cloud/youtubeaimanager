@@ -395,3 +395,30 @@ def test_video_joins_a_playlist_once(db, monkeypatch):
     v2 = _short(db, title="Another one")
     pub2 = db.query(Publication).filter_by(video_id=v2.id).first()
     assert playlists.add_to_playlist(db, v2, pub2) and calls[-1] == "playlistItems" and calls.count("playlists") == 1
+
+
+def test_retitle_picks_only_a_mature_weak_short_once(db, monkeypatch):
+    from app.services import retitle
+
+    for i, views in enumerate([1000, 900, 1100, 5]):
+        _short(db, title=f"Story number {i}", hours_ago=72, views=views)
+    p = retitle.pick(db)
+    assert p is not None and p.title == "Story number 3"
+    monkeypatch.setattr(youtube, "is_connected", lambda d: True)
+    monkeypatch.setattr(youtube, "quota_blocked", lambda d: False)
+    monkeypatch.setattr(llm, "is_configured", lambda: True)
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: {"title": "The cat who joined the fire brigade"})
+    calls = []
+    monkeypatch.setattr(youtube, "api", lambda d, m, u, **kw: calls.append((m, kw["json_body"]["snippet"]["title"])) or {})
+    assert retitle.process(db) == "ok"
+    assert calls == [("PUT", "The cat who joined the fire brigade")]
+    assert db.get(Video, p.video_id).title == "The cat who joined the fire brigade"
+    assert retitle.process(db) == "wait"  # throttled
+    assert retitle.pick(db) is None  # never the same video twice
+
+
+def test_retitle_needs_enough_videos(db):
+    from app.services import retitle
+
+    _short(db, hours_ago=72, views=1)
+    assert retitle.pick(db) is None

@@ -204,6 +204,13 @@ def run_cycle(budget_s: Optional[float] = None) -> dict[str, Any]:
                 summary["replies"] = comment_replies.process(db)
         except Exception as e:
             summary["replies"] = f"error: {e}"
+        try:  # one weak Short gets a stronger title (self-throttled)
+            from .services import retitle
+
+            with SessionLocal() as db:
+                summary["retitle"] = retitle.process(db)
+        except Exception as e:
+            summary["retitle"] = f"error: {e}"
     except BaseException as e:
         status, detail = "error", f"{type(e).__name__}: {e}"
         log_event("runner", f"cycle crashed: {detail}", level="ERROR")
