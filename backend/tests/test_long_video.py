@@ -375,3 +375,23 @@ def test_captions_get_a_like_subscribe_banner_twice():
     assert ass.count(",Cta,,") == 2 and "LIKE  •  SUBSCRIBE" in ass and "Style: Cta," in ass
     assert ",Cta,," not in subtitles.to_ass(chunks, total=30.0)
     assert ",Cta,," not in subtitles.to_ass(chunks, cta="X", total=5.0)  # too short for a nudge
+
+
+def test_video_joins_a_playlist_once(db, monkeypatch):
+    from app.services import playlists
+
+    calls = []
+
+    def fake_api(db_, method, url, **kw):
+        calls.append(url.rsplit("/", 1)[-1])
+        return {"id": "PL1"}
+
+    monkeypatch.setattr(youtube, "api", fake_api)
+    v = _short(db)
+    pub = db.query(Publication).filter_by(video_id=v.id).first()
+    assert playlists.add_to_playlist(db, v, pub) is True
+    assert playlists.add_to_playlist(db, v, pub) is False  # only once
+    assert calls == ["playlists", "playlistItems"]
+    v2 = _short(db, title="Another one")
+    pub2 = db.query(Publication).filter_by(video_id=v2.id).first()
+    assert playlists.add_to_playlist(db, v2, pub2) and calls[-1] == "playlistItems" and calls.count("playlists") == 1

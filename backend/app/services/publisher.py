@@ -174,6 +174,14 @@ def publish_video(db: Session, video: Video) -> None:
             except Exception as e:
                 db.rollback()
                 log_event("publisher", f"first comment not scheduled: {e}", level="WARNING", video_id=video.id)
+        # ---- step 4: playlist (keeps viewers watching). Best effort, retried by nothing: a miss costs little.
+        try:
+            from . import playlists
+
+            playlists.add_to_playlist(db, video, pub)
+        except Exception as e:
+            db.rollback()
+            log_event("publisher", f"playlist not updated: {e}", level="WARNING", video_id=video.id)
     except QuotaExceeded as e:
         db.rollback()
         youtube.block_for_quota(db)
