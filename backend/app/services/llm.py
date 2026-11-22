@@ -24,6 +24,10 @@ class TransientLLMError(Exception):
     pass
 
 
+class NoCreditsError(PermanentError):
+    """HTTP 402: the account of this model/provider is out of credits (a fallback model may still work)."""
+
+
 def is_configured() -> bool:
     return bool(get_config().llm_api_key)
 
@@ -71,7 +75,7 @@ def _call_once(model: str, messages: list[dict], temperature: float, json_mode: 
     if resp.status_code in (401, 403):
         raise PermanentError(f"LLM authentication failed ({resp.status_code}): {_error_text(resp)}")
     if resp.status_code == 402:
-        raise PermanentError(f"LLM account has no credits: {_error_text(resp)}")
+        raise NoCreditsError(f"LLM account has no credits: {_error_text(resp)}")
     if resp.status_code in (408, 409, 425, 429) or resp.status_code >= 500:
         raise TransientLLMError(f"HTTP {resp.status_code}: {_error_text(resp)}")
     if resp.status_code >= 400:
@@ -106,7 +110,7 @@ def chat(messages: list[dict], *, temperature: float = 0.8, json_mode: bool = Fa
     main = model or c.llm_model
     try:
         return _call_with_retry(main, messages, temperature, json_mode, max_tokens, timeout)
-    except TransientLLMError as e:
+    except (TransientLLMError, NoCreditsError) as e:
         if c.llm_fallback_model and c.llm_fallback_model != main:
             log.warning("model '%s' keeps failing (%s); using fallback '%s'", main, e, c.llm_fallback_model)
             return _call_with_retry(c.llm_fallback_model, messages, temperature, json_mode, max_tokens, timeout)
