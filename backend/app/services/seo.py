@@ -44,6 +44,9 @@ What worked before (match the style, never copy):
 {learning.digest(db, 700)}
 
 Rules:
+- title style: generic formulas such as "The Science Behind X", "X Explained" or "Why Do X? The Truth" get almost no views on
+  our channel. Instead state ONE concrete, surprising claim, ideally one that contradicts a common belief or names a specific
+  number or image (for example "Sea Otters Hold Hands - Not for Cuteness"). Never promise something the video does not show.
 - title: max {TITLE_MAX} characters (Shorts titles are cut off in the feed, so keep a Short under 50 characters when possible), front-load the main keyword, create curiosity, no ALL CAPS, no emoji spam (0-1 emoji).
 - description: {'3-5 short paragraphs (max 1500 characters): what the story is about without spoiling the twist' if long else '2-4 short paragraphs (max 900 characters)'}; the first sentence repeats the main keyword and the promise,
   then context, then a soft call to subscribe. Do not include hashtags in it.

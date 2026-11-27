@@ -38,7 +38,17 @@ def _system_prompt(s: AppSettings) -> str:
     )
 
 
-def _user_prompt(s: AppSettings, signals: list[dict], digest: str, recent: list[str], n: int) -> str:
+def _overused_categories(db: Session, window: int = 60, min_count: int = 4, top: int = 4) -> list[str]:
+    """Categories that already fill a big share of our latest ideas (so the channel does not become one-note)."""
+    rows = db.execute(select(Idea.category).where(Idea.category != "").order_by(Idea.id.desc()).limit(window)).all()
+    counts: dict[str, int] = {}
+    for (c,) in rows:
+        counts[c] = counts.get(c, 0) + 1
+    return [c for c, k in sorted(counts.items(), key=lambda x: -x[1]) if k >= min_count][:top]
+
+
+def _user_prompt(s: AppSettings, signals: list[dict], digest: str, recent: list[str], n: int,
+                 overused: Optional[list[str]] = None) -> str:
     exploit = max(0, round(n * (1 - s.explore_ratio)))
     if "TOP PERFORMERS" in digest:  # we have winners: lean into them
         exploit = max(exploit, round(n * 0.7))
@@ -76,6 +86,7 @@ official or unexpected outcome ({title_examples}). Stories are clearly fictional
 characters, no real people, brands or claims of real news.
 Another idea style that works for us: myth-busting and "hidden mechanics of everyday things" (why buildings fall, how a
 dangerous job is really done, what happens inside familiar objects); every idea needs a hook that challenges a belief.
+{('OVERUSED CATEGORIES (we already have too many of these - at most ONE idea in this batch may touch them, and only with a truly unusual angle): ' + ', '.join(overused)) if overused else ''}
 DIFFERENTIATION: never pick the most common topics that thousands of channels already covered (for example "why do cats
 purr", "why do dogs spin before lying down", "the secret life of office plants"). A new channel cannot win on them. Every
 idea needs an unexpected, specific angle or an invented situation that a viewer has not seen yet, and a reason to send it
@@ -115,7 +126,7 @@ def generate_ideas(db: Session, n: int = IDEAS_PER_RUN) -> int:
     digest = learning.digest(db)
     recent = learning.recent_topics(db)
     data = llm.chat_json(
-        [{"role": "system", "content": _system_prompt(s)}, {"role": "user", "content": _user_prompt(s, signals, digest, recent, n)}],
+        [{"role": "system", "content": _system_prompt(s)}, {"role": "user", "content": _user_prompt(s, signals, digest, recent, n, _overused_categories(db))}],
         temperature=0.95, max_tokens=3500,
     )
     raw = data.get("ideas") if isinstance(data, dict) else data
