@@ -44,7 +44,7 @@ What worked before (match the style, never copy):
 {learning.digest(db, 700)}
 
 Rules:
-- title: max {TITLE_MAX} characters, front-load the main keyword, create curiosity, no ALL CAPS, no emoji spam (0-1 emoji).
+- title: max {TITLE_MAX} characters (Shorts titles are cut off in the feed, so keep a Short under 50 characters when possible), front-load the main keyword, create curiosity, no ALL CAPS, no emoji spam (0-1 emoji).
 - description: {'3-5 short paragraphs (max 1500 characters): what the story is about without spoiling the twist' if long else '2-4 short paragraphs (max 900 characters)'}; the first sentence repeats the main keyword and the promise,
   then context, then a soft call to subscribe. Do not include hashtags in it.
 - hashtags: {'3-4, no spaces, WITHOUT the # sign (do NOT use "Shorts")' if long else '3-5, no spaces, WITHOUT the # sign; always include "Shorts" as the last one'}.

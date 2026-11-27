@@ -76,6 +76,13 @@ official or unexpected outcome ({title_examples}). Stories are clearly fictional
 characters, no real people, brands or claims of real news.
 Another idea style that works for us: myth-busting and "hidden mechanics of everyday things" (why buildings fall, how a
 dangerous job is really done, what happens inside familiar objects); every idea needs a hook that challenges a belief.
+DIFFERENTIATION: never pick the most common topics that thousands of channels already covered (for example "why do cats
+purr", "why do dogs spin before lying down", "the secret life of office plants"). A new channel cannot win on them. Every
+idea needs an unexpected, specific angle or an invented situation that a viewer has not seen yet, and a reason to send it
+to a friend (it is funny, heartwarming or makes the viewer feel clever for knowing it).
+SERIES: make about a third of the ideas recurring series with a fixed title pattern, so that viewers recognise the channel
+and subscribe to get the next episode (for example "Officially Approved: <subject>" or "Hidden Mechanics: <object>").
+Keep the same pattern across episodes and number them when it fits (Part 2, Part 3).
 Create {n} new video ideas: {exploit} that build on what worked and {explore} that explore fresh themes within the niche.
 If TOP PERFORMERS are listed above, at least half of the "build on what worked" ideas must be close relatives of them:
 same category and hook style, the same kind of payoff, but a clearly different specific subject (a "part 2", the next
