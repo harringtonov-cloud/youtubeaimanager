@@ -105,6 +105,22 @@ Return JSON: {{"ideas": [{{"topic": "specific topic, max 100 chars", "angle": "t
 "trend_signal": "the trend this connects to, or empty", "potential": 1-10}}]}}"""
 
 
+def _kw_words(kws: list[str]) -> set[str]:
+    return {w for k in kws for w in normalize(k).split() if len(w) > 2}
+
+
+def _keyword_duplicate(kws: list[str], known: list[set[str]]) -> bool:
+    """A paraphrased repeat of an old idea shares most of its search keywords even when the title differs."""
+    mine = _kw_words(kws)
+    if len(mine) < 3:
+        return False
+    for other in known:
+        shared = len(mine & other)
+        if shared >= 3 and shared / len(mine | other) >= 0.5:
+            return True
+    return False
+
+
 def _forbidden_hit(text: str, forbidden: str) -> bool:
     t = normalize(text)
     for word in (w.strip() for w in forbidden.replace("\n", ",").split(",")):
@@ -135,6 +151,8 @@ def generate_ideas(db: Session, n: int = IDEAS_PER_RUN) -> int:
 
     existing = recent + [t for (t,) in db.execute(select(Idea.topic)).all()][:500]
     existing_fp = {fp for (fp,) in db.execute(select(Idea.fingerprint)).all()}
+    known_kw = [_kw_words(list(k or [])) for (k,) in db.execute(
+        select(Idea.keywords).order_by(Idea.id.desc()).limit(300)).all()]
     created = 0
     for it in raw:
         if not isinstance(it, dict):
@@ -148,6 +166,8 @@ def generate_ideas(db: Session, n: int = IDEAS_PER_RUN) -> int:
         if fp in existing_fp or is_similar(topic, existing, 0.6):
             continue
         kws = [normalize(clean_tag(str(k))) for k in (it.get("keywords") or []) if str(k).strip()][:8]
+        if _keyword_duplicate(kws, known_kw):
+            continue
         category = normalize(str(it.get("category", "")))[:80]
         style = str(it.get("hook_style", "")).strip().lower()
         style = style if style in HOOK_STYLES else ""
@@ -167,6 +187,7 @@ def generate_ideas(db: Session, n: int = IDEAS_PER_RUN) -> int:
             db.rollback()
             continue
         existing.append(topic)
+        known_kw.append(_kw_words(kws))
         existing_fp.add(fp)
         created += 1
     log_event("director", f"Director created {created} new ideas ({len(raw)} proposed)", signals=len(signals))
