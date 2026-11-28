@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .. import scope
 from ..events import log_event
 from ..models import CANCELLED, Idea, Video, utcnow
 from ..scheduling import next_slots
@@ -162,7 +163,7 @@ def generate_ideas(db: Session, n: int = IDEAS_PER_RUN) -> int:
             continue
         if _forbidden_hit(topic + " " + str(it.get("angle", "")), s.forbidden_topics):
             continue
-        fp = fingerprint(topic)
+        fp = scope.salt_fingerprint(fingerprint(topic))
         if fp in existing_fp or is_similar(topic, existing, 0.6):
             continue
         kws = [normalize(clean_tag(str(k))) for k in (it.get("keywords") or []) if str(k).strip()][:8]

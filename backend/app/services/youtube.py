@@ -88,7 +88,7 @@ def build_auth_url(db: Session) -> str:
         "response_type": "code",
         "scope": " ".join(SCOPES),
         "access_type": "offline",
-        "prompt": "consent",  # always return a refresh token
+        "prompt": "consent select_account",  # always return a refresh token; let the owner pick another Google account
         "include_granted_scopes": "true",
         "state": state,
         "code_challenge": challenge,
@@ -137,14 +137,16 @@ def handle_callback(db: Session, code: str, state: str) -> YouTubeAccount:
     )
     refresh = tok.get("refresh_token")
     access = tok["access_token"]
+    channel = _fetch_channel(access)
+    # the channel being connected may already be known (re-connect) - several channels can live in one installation
+    acct = db.execute(select(YouTubeAccount).where(YouTubeAccount.channel_id == channel["id"])).scalar_one_or_none()
     if not refresh:
-        existing = db.execute(select(YouTubeAccount).order_by(YouTubeAccount.id.desc()).limit(1)).scalar_one_or_none()
-        if existing is None:
+        if acct is None:
             raise PermanentError(
                 "Google did not return a refresh token. Remove the app at https://myaccount.google.com/permissions "
                 "and connect again."
             )
-        refresh = decrypt(existing.refresh_token_enc)
+        refresh = decrypt(acct.refresh_token_enc)
 
     granted = set((tok.get("scope") or "").split())
     missing = [s for s in SCOPES if s not in granted]
@@ -152,8 +154,6 @@ def handle_callback(db: Session, code: str, state: str) -> YouTubeAccount:
         raise PermanentError("Not all permissions were granted (tick every checkbox on the Google consent screen): "
                              + ", ".join(m.rsplit("/", 1)[-1] for m in missing))
 
-    channel = _fetch_channel(access)
-    acct = db.execute(select(YouTubeAccount).where(YouTubeAccount.channel_id == channel["id"])).scalar_one_or_none()
     if acct is None:
         acct = YouTubeAccount(channel_id=channel["id"], refresh_token_enc=encrypt(refresh))
         db.add(acct)

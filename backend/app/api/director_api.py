@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Qu
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .. import scope
 from ..db import get_db
 from ..events import log_event
 from ..models import CANCELLED, Idea, Insight, TopicPerformance, Video, utcnow
@@ -38,7 +39,7 @@ def add_idea(body: dict[str, Any] = Body(...), db: Session = Depends(get_db)):
     topic = str(body.get("topic", "")).strip()
     if len(topic) < 5:
         raise HTTPException(422, "topic is too short")
-    fp = fingerprint(topic)
+    fp = scope.salt_fingerprint(fingerprint(topic))
     if db.execute(select(Idea.id).where(Idea.fingerprint == fp)).first():
         raise HTTPException(409, "a very similar idea already exists")
     idea = Idea(topic=topic[:300], angle=str(body.get("angle", ""))[:1000], hook=str(body.get("hook", ""))[:500],

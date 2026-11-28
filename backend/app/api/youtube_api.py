@@ -4,10 +4,13 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import scope
 from ..config import get_config
 from ..db import get_db
+from ..models import YouTubeAccount
 from ..events import log_event
 from ..security import require_admin
 from ..services import preflight, youtube
@@ -45,6 +48,18 @@ def _account_dict(db: Session) -> dict:
     }
 
 
+@router.get("/channels", dependencies=[Depends(require_admin)])
+def list_channels(db: Session = Depends(get_db)):
+    """Every connected YouTube channel (the dashboard's channel switcher). `current` is the one this request works on."""
+    cur = scope.current()
+    with scope.use(None):  # the list itself is not filtered by channel
+        rows = db.execute(select(YouTubeAccount).order_by(YouTubeAccount.id)).scalars().all()
+    return {"channels": [{"id": a.id, "channel_id": a.channel_id, "title": a.channel_title or a.channel_id,
+                          "thumbnail_url": a.thumbnail_url, "subscriber_count": a.subscriber_count,
+                          "status": a.status} for a in rows],
+            "current": cur.account_id if cur else None}
+
+
 @router.get("/youtube/status", dependencies=[Depends(require_admin)])
 def youtube_status(db: Session = Depends(get_db)):
     return _account_dict(db)
@@ -66,11 +81,11 @@ def youtube_callback(code: str = Query(None), state: str = Query(None), error: s
     if error or not code or not state:
         return RedirectResponse(f"{front}?{urlencode({'error': error or 'missing code'})}")
     try:
-        youtube.handle_callback(db, code, state)
+        acct = youtube.handle_callback(db, code, state)
     except (PermanentError, youtube.YouTubeError) as e:
         log_event("youtube", f"OAuth callback failed: {e}", level="ERROR")
         return RedirectResponse(f"{front}?{urlencode({'error': str(e)[:300]})}")
-    return RedirectResponse(f"{front}?connected=1")
+    return RedirectResponse(f"{front}?connected=1&channel={acct.id}")
 
 
 @router.post("/youtube/resume", dependencies=[Depends(require_admin)])
