@@ -22,7 +22,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core fonts-liberation
       - run: pip install -r requirements.txt
       - run: python -m compileall -q app alembic
-      - run: pytest -q
+      - name: pytest
+        run: |
+          set +e
+          pytest -q --tb=short -p no:cacheprovider > /tmp/pytest.out 2>&1
+          code=$?
+          tail -n 120 /tmp/pytest.out
+          python - <<'PY'
+          import re
+          t = open("/tmp/pytest.out").read()[-6000:]
+          t = t.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          print("::error title=pytest-output::" + t)
+          PY
+          exit $code
 
   frontend:
     runs-on: ubuntu-latest
