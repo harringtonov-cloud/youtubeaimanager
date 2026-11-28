@@ -63,6 +63,12 @@ PIPELINE_ORDER = [PLANNED, SCRIPTED, SEO_READY, RENDERED, READY, PUBLISHING, PUB
 ACTIVE_STATUSES = [PLANNED, SCRIPTED, SEO_READY, RENDERED, READY, PUBLISHING]
 
 
+class AccountScoped:
+    """Rows that belong to one YouTube channel (see scope.py); filtered and stamped automatically in db.py."""
+
+    account_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+
+
 class Setting(Base):
     __tablename__ = "settings"
 
@@ -98,7 +104,7 @@ class OAuthState(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 
-class Idea(Base):
+class Idea(AccountScoped, Base):
     __tablename__ = "ideas"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -120,7 +126,7 @@ class Idea(Base):
     video: Mapped[Optional["Video"]] = relationship(back_populates="idea", uselist=False)
 
 
-class Video(Base):
+class Video(AccountScoped, Base):
     __tablename__ = "videos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -159,7 +165,7 @@ class Video(Base):
     publication: Mapped[Optional["Publication"]] = relationship(back_populates="video", uselist=False)
 
 
-class Publication(Base):
+class Publication(AccountScoped, Base):
     __tablename__ = "publications"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -184,7 +190,7 @@ class Publication(Base):
     )
 
 
-class AnalyticsSnapshot(Base):
+class AnalyticsSnapshot(AccountScoped, Base):
     __tablename__ = "analytics_snapshots"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -204,11 +210,11 @@ class AnalyticsSnapshot(Base):
     publication: Mapped[Publication] = relationship(back_populates="snapshots")
 
 
-class TopicPerformance(Base):
+class TopicPerformance(AccountScoped, Base):
     """Aggregated performance per keyword / category / hook style — the learning memory."""
 
     __tablename__ = "topic_performance"
-    __table_args__ = (Index("ix_topic_kind_key", "kind", "key", unique=True),)
+    __table_args__ = (Index("ix_topic_acct_kind_key", "account_id", "kind", "key", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     kind: Mapped[str] = mapped_column(String(20))  # keyword | category | hook_style
@@ -221,7 +227,7 @@ class TopicPerformance(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 
 
-class Insight(Base):
+class Insight(AccountScoped, Base):
     """AI-written analytics summary used as feedback for the Director."""
 
     __tablename__ = "insights"
@@ -232,7 +238,7 @@ class Insight(Base):
     data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
 
-class LogEntry(Base):
+class LogEntry(AccountScoped, Base):
     __tablename__ = "logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -244,7 +250,7 @@ class LogEntry(Base):
     video_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
 
 
-class JobRun(Base):
+class JobRun(AccountScoped, Base):
     """Heartbeat/audit of scheduled jobs (last run, duration, outcome)."""
 
     __tablename__ = "job_runs"
@@ -255,3 +261,7 @@ class JobRun(Base):
     finished_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(12), default="running")  # running | ok | error
     detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+# models whose rows belong to one channel (filtered / stamped by the current scope); YouTubeAccount is the channel itself
+SCOPED_MODELS = (Idea, Video, Publication, AnalyticsSnapshot, TopicPerformance, Insight, LogEntry, JobRun)

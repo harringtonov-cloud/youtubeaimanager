@@ -11,7 +11,7 @@ def test_youtube_status_and_connect(client):
     assert st["redirect_uri"].endswith("/api/youtube/callback")
     url = client.post("/api/youtube/connect").json()["auth_url"]
     q = parse_qs(urlparse(url).query)
-    assert q["access_type"] == ["offline"] and q["prompt"] == ["consent"]
+    assert q["access_type"] == ["offline"] and q["prompt"] == ["consent select_account"]
     assert q["code_challenge_method"] == ["S256"] and q["client_id"] == ["test-client-id"]
     assert "youtube.upload" in q["scope"][0] and "yt-analytics.readonly" in q["scope"][0]
 

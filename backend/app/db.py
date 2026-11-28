@@ -4,8 +4,10 @@ import os
 from contextlib import contextmanager
 from typing import Iterator
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine, event, or_
+from sqlalchemy.orm import Session, sessionmaker, with_loader_criteria
+
+from . import scope
 
 from .config import get_config
 
@@ -51,3 +53,37 @@ def session_scope() -> Iterator[Session]:
         raise
     finally:
         db.close()
+
+
+# --- per-channel data isolation (see scope.py) ---------------------------------------------------------------------
+@event.listens_for(Session, "do_orm_execute")
+def _filter_by_channel(state) -> None:
+    """Every ORM select / update / delete only sees the rows of the current channel."""
+    sc = scope.current()
+    if sc is None or state.is_column_load or state.is_relationship_load:
+        return
+    if not (state.is_select or state.is_update or state.is_delete):
+        return
+    from .models import SCOPED_MODELS, YouTubeAccount
+
+    stmt = state.statement
+    for cls in SCOPED_MODELS:
+        crit = cls.account_id == sc.account_id
+        if sc.legacy:  # rows created before multi-channel support have no owner: they belong to the original channel
+            crit = or_(crit, cls.account_id.is_(None))
+        stmt = stmt.options(with_loader_criteria(cls, crit, include_aliases=True))
+    stmt = stmt.options(with_loader_criteria(YouTubeAccount, YouTubeAccount.id == sc.account_id, include_aliases=True))
+    state.statement = stmt
+
+
+@event.listens_for(Session, "before_flush")
+def _stamp_channel(session, flush_context, instances) -> None:
+    """New rows are owned by the current channel."""
+    sc = scope.current()
+    if sc is None:
+        return
+    from .models import SCOPED_MODELS
+
+    for obj in session.new:
+        if isinstance(obj, SCOPED_MODELS) and obj.account_id is None:
+            obj.account_id = sc.account_id

@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
+from . import scope
 from .models import Setting
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -108,7 +109,7 @@ _KEY = "app_settings"
 
 
 def get_settings(db: Session) -> AppSettings:
-    row = db.get(Setting, _KEY)
+    row = db.get(Setting, scope.scoped_key(_KEY))
     data: dict[str, Any] = dict(row.value) if row and isinstance(row.value, dict) else {}
     if "timezone" not in data:
         from .config import get_config
@@ -135,9 +136,9 @@ def update_settings(db: Session, patch: dict[str, Any]) -> AppSettings:
     current = get_settings(db).model_dump()
     current.update({k: v for k, v in patch.items() if k in AppSettings.model_fields})
     validated = AppSettings(**current)  # raises on invalid values
-    row = db.get(Setting, _KEY)
+    row = db.get(Setting, scope.scoped_key(_KEY))
     if row is None:
-        row = Setting(key=_KEY, value=validated.model_dump())
+        row = Setting(key=scope.scoped_key(_KEY), value=validated.model_dump())
         db.add(row)
     else:
         row.value = validated.model_dump()
@@ -147,14 +148,14 @@ def update_settings(db: Session, patch: dict[str, Any]) -> AppSettings:
 
 
 def get_flag(db: Session, key: str, default: Any = None) -> Any:
-    row = db.get(Setting, f"flag:{key}")
+    row = db.get(Setting, scope.scoped_key(f"flag:{key}"))
     return row.value if row else default
 
 
 def set_flag(db: Session, key: str, value: Any) -> None:
-    row = db.get(Setting, f"flag:{key}")
+    row = db.get(Setting, scope.scoped_key(f"flag:{key}"))
     if row is None:
-        db.add(Setting(key=f"flag:{key}", value=value))
+        db.add(Setting(key=scope.scoped_key(f"flag:{key}"), value=value))
     else:
         row.value = value
     db.commit()

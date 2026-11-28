@@ -24,6 +24,7 @@ from sqlalchemy import select
 from .config import get_config
 from .db import SessionLocal
 from .events import log_event, setup_logging
+from . import scope
 from .models import PLANNED, PUBLISHING, RENDERED, SCRIPTED, SEO_READY, JobRun, Video, utcnow
 from .settings_store import get_settings
 from .stages import (
@@ -159,11 +160,35 @@ def _periodic_due(name: str, every: timedelta) -> bool:
 
 
 def run_cycle(budget_s: Optional[float] = None) -> dict[str, Any]:
-    from .workers import tasks
-
+    """One worker pass over every connected YouTube channel (a single channel behaves exactly as before)."""
     cfg = get_config()
     budget = budget_s if budget_s is not None else cfg.runner_budget_minutes * 60
     deadline = time.monotonic() + budget
+
+    with SessionLocal() as db:
+        scopes = scope.all_scopes(db)
+    if len(scopes) <= 1:
+        with scope.use(scopes[0] if scopes else None):
+            return _run_channel_cycle(deadline)
+
+    # several channels: take turns starting first, so a heavy channel cannot starve the others every time
+    start = int(time.time() // 900) % len(scopes)
+    results: dict[str, Any] = {}
+    failure: Optional[BaseException] = None
+    for sc in scopes[start:] + scopes[:start]:
+        try:
+            with scope.use(sc):
+                results[f"channel_{sc.account_id}"] = _run_channel_cycle(deadline)
+        except Exception as e:  # one channel crashing must not stop the others
+            results[f"channel_{sc.account_id}"] = f"error: {e}"
+            failure = failure or e
+    if failure is not None:
+        raise failure
+    return results
+
+
+def _run_channel_cycle(deadline: float) -> dict[str, Any]:
+    from .workers import tasks
 
     with SessionLocal() as db:
         run = JobRun(name="runner")
