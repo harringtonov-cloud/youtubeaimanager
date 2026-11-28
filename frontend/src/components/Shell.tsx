@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useApi } from "@/lib/api";
+import ChannelSwitcher from "./ChannelSwitcher";
 import { Dot, ToastProvider, cx } from "./ui";
 
 const NAV = [
@@ -33,6 +34,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-0.5 p-3">
+      <ChannelSwitcher />
       {NAV.map((n) => {
         const active = n.href === "/" ? path === "/" : path.startsWith(n.href);
         return (

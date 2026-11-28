@@ -12,6 +12,8 @@ async function handle(req: NextRequest, { params }: { params: { path: string[] }
   const url = `${backendUrl()}/${path}${req.nextUrl.search}`;
 
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  const channel = req.cookies.get("yam_channel")?.value; // the YouTube channel chosen in the switcher
+  if (channel && /^\d+$/.test(channel)) headers["X-Channel"] = channel;
   const ct = req.headers.get("content-type");
   if (ct) headers["content-type"] = ct;
   const range = req.headers.get("range"); // video seeking
