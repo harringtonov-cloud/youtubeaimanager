@@ -45,7 +45,9 @@ def _runner_age_from_db() -> Optional[float]:
         from .db import SessionLocal
         from .models import JobRun
 
-        with SessionLocal() as db:
+        from . import scope
+
+        with scope.use(None), SessionLocal() as db:  # one worker serves every channel: look at all of its cycles
             ts = db.execute(
                 select(JobRun.started_at).where(JobRun.name == "runner").order_by(JobRun.started_at.desc()).limit(1)
             ).scalar_one_or_none()

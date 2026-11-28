@@ -115,3 +115,16 @@ def test_api_channel_header_switches_data(client, db):
     titles_b = {v["title"] for v in client.get("/api/videos", headers={"X-Channel": str(b)}).json()["items"]}
     assert titles_a == {"video of A"}
     assert titles_b == {"video of B"}
+
+
+def test_worker_signal_is_global_not_per_channel(db):
+    """The runner is one process for all channels: a cycle recorded for channel A counts for channel B too."""
+    from app.models import JobRun
+    from app.redis_util import _runner_age_from_db
+
+    a, b = _accounts(db)
+    with scope.use(scope.Scope(a, legacy=True)):
+        db.add(JobRun(name="runner", status="ok"))
+        db.commit()
+    with scope.use(scope.Scope(b)):
+        assert _runner_age_from_db() is not None
