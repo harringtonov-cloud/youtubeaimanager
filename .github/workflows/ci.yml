@@ -22,6 +22,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core fonts-liberation
       - run: pip install -r requirements.txt
       - run: python -m compileall -q app alembic
+      - name: migrations (upgrade, downgrade one step, upgrade again)
+        run: |
+          export DATABASE_URL=sqlite:///$RUNNER_TEMP/mig.sqlite SECRET_KEY=ci-secret-key-0123456789 ADMIN_TOKEN=ci
+          alembic upgrade head && alembic downgrade -1 && alembic upgrade head
       - name: pytest
         run: |
           set +e
